@@ -89,7 +89,9 @@ jobs:
           script: |
             const permalink = process.env['VIRUSTOTAL_PERMALINK'] || '';
             let summary = `## VirusTotal Analysis URL\n`;
-            if (permalink) summary += `- [Permalink](${permalink})\n`;
+            // Extract the actual VirusTotal URL if the permalink contains '='
+            let vtUrl = permalink.includes('=') ? permalink.split('=')[1] : permalink;
+            if (vtUrl) summary += `- [Permalink](${vtUrl})\n`;
             core.summary.addRaw(summary).write();
         env:
           VIRUSTOTAL_PERMALINK: ${{ steps.virustotal.outputs.analysis }}
