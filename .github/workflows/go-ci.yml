@@ -82,9 +82,7 @@ jobs:
           files: bin/${{ matrix.BIN_NAME }}
       - name: Print VirusTotal analysis URLs
         run: |
-          echo "VirusTotal analysis URL (permalink): ${{ steps.virustotal.outputs.permalink }}"
-          echo "VirusTotal analysis URL (analysis_url): ${{ steps.virustotal.outputs.analysis_url }}"
-          # You can use either 'permalink' or 'analysis_url' depending on which is populated by the action
+          echo "VirusTotal analysis URL (analysis): ${{ steps.virustotal.outputs.analysis }}"
       - name: Write VirusTotal analysis permalink to summary
         uses: actions/github-script@v7
         with:
@@ -94,7 +92,7 @@ jobs:
             if (permalink) summary += `- [Permalink](${permalink})\n`;
             core.summary.addRaw(summary).write();
         env:
-          VIRUSTOTAL_PERMALINK: ${{ steps.virustotal.outputs.permalink }}
+          VIRUSTOTAL_PERMALINK: ${{ steps.virustotal.outputs.analysis }}
 
   release:
     needs: build
