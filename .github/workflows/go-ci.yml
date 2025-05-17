@@ -1,10 +1,10 @@
-name: Go CI
+name: Docker Compose Backup & Restore CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
     types: [opened, synchronize, reopened]
     paths-ignore: []
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: "stable"
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -38,7 +38,7 @@ jobs:
 
   build:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest 
     strategy:
       matrix:
         include:
@@ -51,9 +51,10 @@ jobs:
           - GOOS: windows
             GOARCH: amd64
             BIN_NAME: dcsbr_windows_amd64.exe
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -81,12 +82,14 @@ jobs:
           name: ${{ matrix.BIN_NAME }}
           path: bin/${{ matrix.BIN_NAME }}
 
-        - name: Upload binary to VirusTotal
+      - name: Upload binary to VirusTotal
         run: |
-            curl --request POST \
-            --url https://www.virustotal.com/api/v3/files \
-            --header "x-apikey: ${{ secrets.VT_API_KEY }}" \
-            --form "file=@bin/${{ matrix.BIN_NAME }}"
+          curl --request POST \
+          --url https://www.virustotal.com/api/v3/files \
+          --header 'accept: application/json' \
+          --header 'content-type: multipart/form-data' \
+          --header "x-apikey: ${{ secrets.VT_API_KEY }}" \
+          --form "file=@bin/${{ matrix.BIN_NAME }}"
 
   release:
     needs: build

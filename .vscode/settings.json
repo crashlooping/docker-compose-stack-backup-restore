@@ -1,0 +1,24 @@
+{
+    "editor.formatOnSave": true,
+    "files.autoSave": "afterDelay", // off, onWindowChange, afterDelay or onFocusChange
+    "[go]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "golang.go"
+    },
+    "[json]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[yaml]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[markdown]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "gopls": {
+        "formatting.gofumpt": true
+    },
+    "prettier.requireConfig": true
+}
