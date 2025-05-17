@@ -85,19 +85,16 @@ jobs:
           echo "VirusTotal analysis URL (permalink): ${{ steps.virustotal.outputs.permalink }}"
           echo "VirusTotal analysis URL (analysis_url): ${{ steps.virustotal.outputs.analysis_url }}"
           # You can use either 'permalink' or 'analysis_url' depending on which is populated by the action
-      - name: Write VirusTotal analysis URLs to summary
+      - name: Write VirusTotal analysis permalink to summary
         uses: actions/github-script@v7
         with:
           script: |
             const permalink = process.env['VIRUSTOTAL_PERMALINK'] || '';
-            const analysisUrl = process.env['VIRUSTOTAL_ANALYSIS_URL'] || '';
-            let summary = `## VirusTotal Analysis URLs\n`;
+            let summary = `## VirusTotal Analysis URL\n`;
             if (permalink) summary += `- [Permalink](${permalink})\n`;
-            if (analysisUrl) summary += `- [Analysis URL](${analysisUrl})\n`;
             core.summary.addRaw(summary).write();
         env:
           VIRUSTOTAL_PERMALINK: ${{ steps.virustotal.outputs.permalink }}
-          VIRUSTOTAL_ANALYSIS_URL: ${{ steps.virustotal.outputs.analysis_url }}
 
   release:
     needs: build
