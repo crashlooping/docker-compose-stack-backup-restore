@@ -94,11 +94,10 @@ jobs:
         with:
           path: ./bin
 
-      - name: Read version
+      - name: Set version from tag
         id: get_version
         run: |
-          VERSION=$(cat VERSION)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
