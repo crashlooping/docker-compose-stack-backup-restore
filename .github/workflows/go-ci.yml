@@ -85,6 +85,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
+    environment: release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -105,4 +106,4 @@ jobs:
           files: |
             ./bin/**/*
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
