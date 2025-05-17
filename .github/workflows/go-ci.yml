@@ -5,6 +5,9 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+  release:
+    types: [created]
 
 jobs:
   test:
@@ -74,3 +77,30 @@ jobs:
         with:
           name: ${{ matrix.BIN_NAME }}
           path: bin/${{ matrix.BIN_NAME }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./bin
+
+      - name: Read version
+        id: get_version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./bin/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
