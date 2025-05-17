@@ -1,0 +1,55 @@
+name: Go CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - GOOS: linux
+            GOARCH: amd64
+            BIN_NAME: dcsbr_linux_amd64
+          - GOOS: linux
+            GOARCH: arm64
+            BIN_NAME: dcsbr_linux_arm64
+          - GOOS: windows
+            GOARCH: amd64
+            BIN_NAME: dcsbr_windows_amd64.exe
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build binary
+        run: |
+          mkdir -p bin
+          GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -v -o bin/${{ matrix.BIN_NAME }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.BIN_NAME }}
+          path: bin/${{ matrix.BIN_NAME }}
