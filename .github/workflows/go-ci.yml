@@ -35,6 +35,7 @@ jobs:
         run: go test -v ./...
 
   build:
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
