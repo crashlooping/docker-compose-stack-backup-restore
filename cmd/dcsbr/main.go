@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/backup"
 )
 
 func main() {
@@ -14,7 +16,7 @@ func main() {
 	srcPath := os.Args[1]
 	dstPath := os.Args[2]
 	fmt.Printf("Starting backup of '%s' to '%s'...\n", srcPath, dstPath)
-	err := BackupComposeStack(srcPath, dstPath)
+	err := backup.BackupComposeStack(srcPath, dstPath)
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)

@@ -1,19 +1,22 @@
-package main
+package backup
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/archive"
+	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/docker"
 )
 
 func BackupComposeStack(srcPath, dstPath string) error {
-	composeFile, err := FindComposeFile(srcPath)
+	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
 		return err
 	}
-	PrintComposeFileStatus(composeFile)
-	stackWasRunning, err := StopStackIfRunning(srcPath, composeFile)
+	docker.PrintComposeFileStatus(composeFile)
+	stackWasRunning, err := docker.StopStackIfRunning(srcPath, composeFile)
 	if err != nil {
 		return err
 	}
@@ -28,7 +31,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	backupName := fmt.Sprintf("backup_%s_%s.tar.gz", folderName, timestamp)
 	backupPath := filepath.Join(dstPath, backupName)
 	fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
-	err = TarGzFolderWithVolumes(srcPath, backupPath, volumeTarballs)
+	err = archive.TarGzFolderWithVolumes(srcPath, backupPath, volumeTarballs)
 	if err != nil {
 		return err
 	}
@@ -37,7 +40,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	zipName := fmt.Sprintf("backup_%s_%s.zip", folderName, timestamp)
 	zipPath := filepath.Join(dstPath, zipName)
 	fmt.Printf("Creating zip backup: %s\n", zipPath)
-	err = ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
+	err = archive.ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
 	if err != nil {
 		return err
 	}
@@ -49,7 +52,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 
 	if stackWasRunning {
 		fmt.Println("Restarting stack...")
-		err = ComposeUp(srcPath, composeFile)
+		err = docker.ComposeUp(srcPath, composeFile)
 		if err != nil {
 			return err
 		}
@@ -64,15 +67,15 @@ func exportAllComposeVolumes(srcPath, composeFile string) ([]string, error) {
 		return volumeTarballs, nil
 	}
 	fmt.Println("Detecting and exporting docker volumes...")
-	volumes, err := ListComposeVolumes(srcPath, composeFile)
+	volumes, err := docker.ListComposeVolumes(srcPath, composeFile)
 	if err != nil {
 		return nil, err
 	}
 	stackName := filepath.Base(srcPath)
 	for _, v := range volumes {
 		fullVolumeName := stackName + "_" + v
-		mountPath := GetVolumeMountPathFromCompose(composeFile, v, srcPath)
-		tarPath, err := ExportDockerVolumeTar(fullVolumeName, mountPath)
+		mountPath := docker.GetVolumeMountPathFromCompose(composeFile, v, srcPath)
+		tarPath, err := archive.ExportDockerVolumeTar(fullVolumeName, mountPath)
 		if err != nil {
 			fmt.Printf("Warning: could not export volume %s: %v\n", fullVolumeName, err)
 			continue
