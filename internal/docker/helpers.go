@@ -1,4 +1,4 @@
-package main
+package docker
 
 import (
 	"bufio"
@@ -79,7 +79,6 @@ func ComposeUp(dir, composeFile string) error {
 	return cmd.Run()
 }
 
-// ListComposeVolumes parses docker compose config to get all named volumes
 func ListComposeVolumes(dir, composeFile string) ([]string, error) {
 	cmd := exec.Command("docker", "compose", "-f", composeFile, "config", "--format", "json")
 	cmd.Dir = dir
@@ -100,7 +99,6 @@ func ListComposeVolumes(dir, composeFile string) ([]string, error) {
 	return names, nil
 }
 
-// GetVolumeMountPathFromCompose parses the compose file to find the mount path for a given volume
 func GetVolumeMountPathFromCompose(composeFile, volume, srcPath string) string {
 	composePath := filepath.Join(srcPath, composeFile)
 	f, err := os.Open(composePath)

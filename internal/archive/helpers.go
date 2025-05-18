@@ -1,4 +1,4 @@
-package main
+package archive
 
 import (
 	"archive/tar"
@@ -13,7 +13,6 @@ import (
 	"time"
 )
 
-// TarGzFolderWithVolumes creates a tar.gz archive of srcDir and includes volume tarballs.
 func TarGzFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) error {
 	f, err := os.Create(destFile)
 	if err != nil {
@@ -24,14 +23,12 @@ func TarGzFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) er
 	defer gz.Close()
 	tarw := tar.NewWriter(gz)
 	defer tarw.Close()
-	// Add filesystem
 	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		return AddFileToTarWithGitIgnore(srcDir, path, info, err, tarw)
 	})
 	if err != nil {
 		return err
 	}
-	// Add volumes
 	for _, v := range volumeTarballs {
 		if err := AddVolumeTarToTarGz(v, tarw); err != nil {
 			return err
@@ -40,7 +37,6 @@ func TarGzFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) er
 	return nil
 }
 
-// AddFileToTarWithGitIgnore skips .git and adds files to tar.
 func AddFileToTarWithGitIgnore(srcDir, path string, info os.FileInfo, err error, tarw *tar.Writer) error {
 	if err != nil {
 		return err
@@ -58,7 +54,6 @@ func AddFileToTarWithGitIgnore(srcDir, path string, info os.FileInfo, err error,
 	return AddFileToTar(srcDir, path, info, err, tarw)
 }
 
-// AddFileToTar adds a file or directory to a tar archive.
 func AddFileToTar(srcDir, path string, info os.FileInfo, err error, tarw *tar.Writer) error {
 	if err != nil {
 		return err
@@ -92,7 +87,6 @@ func AddFileToTar(srcDir, path string, info os.FileInfo, err error, tarw *tar.Wr
 	return nil
 }
 
-// AddVolumeTarToTarGz adds a volume tarball to the tar.gz archive under volumes/.
 func AddVolumeTarToTarGz(volumeTarPath string, tarw *tar.Writer) error {
 	file, err := os.Open(volumeTarPath)
 	if err != nil {
@@ -117,7 +111,6 @@ func AddVolumeTarToTarGz(volumeTarPath string, tarw *tar.Writer) error {
 	return err
 }
 
-// ZipFolderWithVolumes creates a zip archive of srcDir and includes volume tarballs.
 func ZipFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) error {
 	f, err := os.Create(destFile)
 	if err != nil {
@@ -140,7 +133,6 @@ func ZipFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) erro
 	return nil
 }
 
-// AddFileToZipWithGitIgnore skips .git and adds files to zip.
 func AddFileToZipWithGitIgnore(srcDir, path string, info os.FileInfo, err error, zipw *zip.Writer) error {
 	if err != nil {
 		return err
@@ -171,7 +163,6 @@ func AddFileToZipWithGitIgnore(srcDir, path string, info os.FileInfo, err error,
 	return err
 }
 
-// AddVolumeTarToZip adds a volume tarball to the zip archive under volumes/.
 func AddVolumeTarToZip(volumeTarPath string, zipw *zip.Writer) error {
 	file, err := os.Open(volumeTarPath)
 	if err != nil {
@@ -191,8 +182,6 @@ func AddVolumeTarToZip(volumeTarPath string, zipw *zip.Writer) error {
 	return err
 }
 
-// ExportDockerVolumeTar uses a sidecar container to tar a volume to a temp file.
-// Accepts a mountPath argument for the correct mount point inside the container.
 func ExportDockerVolumeTar(volume, mountPath string) (string, error) {
 	tarPath := filepath.Join(os.TempDir(), volume+".tar")
 	containerName := "tmp-vol-backup-" + volume + "-" + fmt.Sprint(time.Now().UnixNano())
