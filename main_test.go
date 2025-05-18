@@ -11,18 +11,18 @@ func TestFindComposeFile(t *testing.T) {
 	composeYml := filepath.Join(dir, "docker-compose.yml")
 	composeYaml := filepath.Join(dir, "docker-compose.yaml")
 	os.WriteFile(composeYml, []byte("version: '3'"), 0o644)
-	file, err := findComposeFile(dir)
+	file, err := FindComposeFile(dir)
 	if err != nil || file != "docker-compose.yml" {
 		t.Errorf("Expected docker-compose.yml, got %v, err: %v", file, err)
 	}
 	os.Remove(composeYml)
 	os.WriteFile(composeYaml, []byte("version: '3'"), 0o644)
-	file, err = findComposeFile(dir)
+	file, err = FindComposeFile(dir)
 	if err != nil || file != "docker-compose.yaml" {
 		t.Errorf("Expected docker-compose.yaml, got %v, err: %v", file, err)
 	}
 	os.Remove(composeYaml)
-	file, err = findComposeFile(dir)
+	file, err = FindComposeFile(dir)
 	if err != nil || file != "" {
 		t.Errorf("Expected '', got %v, err: %v", file, err)
 	}
@@ -36,11 +36,11 @@ func TestTarGzFolderAndZipFolder(t *testing.T) {
 	dst := t.TempDir()
 	tarPath := filepath.Join(dst, "test.tar.gz")
 	zipPath := filepath.Join(dst, "test.zip")
-	if err := tarGzFolderWithVolumes(src, tarPath, nil); err != nil {
-		t.Fatalf("tarGzFolderWithVolumes failed: %v", err)
+	if err := TarGzFolderWithVolumes(src, tarPath, nil); err != nil {
+		t.Fatalf("TarGzFolderWithVolumes failed: %v", err)
 	}
-	if err := zipFolderWithVolumes(src, zipPath, nil); err != nil {
-		t.Fatalf("zipFolderWithVolumes failed: %v", err)
+	if err := ZipFolderWithVolumes(src, zipPath, nil); err != nil {
+		t.Fatalf("ZipFolderWithVolumes failed: %v", err)
 	}
 	// Optionally, check that .git/should_ignore.txt is not in the archives (not implemented here)
 }
