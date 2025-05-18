@@ -36,11 +36,11 @@ func TestTarGzFolderAndZipFolder(t *testing.T) {
 	dst := t.TempDir()
 	tarPath := filepath.Join(dst, "test.tar.gz")
 	zipPath := filepath.Join(dst, "test.zip")
-	if err := tarGzFolder(src, tarPath); err != nil {
-		t.Fatalf("tarGzFolder failed: %v", err)
+	if err := tarGzFolderWithVolumes(src, tarPath, nil); err != nil {
+		t.Fatalf("tarGzFolderWithVolumes failed: %v", err)
 	}
-	if err := zipFolder(src, zipPath); err != nil {
-		t.Fatalf("zipFolder failed: %v", err)
+	if err := zipFolderWithVolumes(src, zipPath, nil); err != nil {
+		t.Fatalf("zipFolderWithVolumes failed: %v", err)
 	}
 	// Optionally, check that .git/should_ignore.txt is not in the archives (not implemented here)
 }
