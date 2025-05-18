@@ -82,7 +82,7 @@ jobs:
       - name: Build binary
         run: |
           mkdir -p bin
-          GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -v -o bin/${{ matrix.BIN_NAME }}
+          GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -v -o bin/${{ matrix.BIN_NAME }} ./cmd/dcsbr
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
