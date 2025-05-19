@@ -54,7 +54,7 @@ func StopStackIfRunning(srcPath, composeFile string) (bool, error) {
 }
 
 func IsComposeStackRunning(dir, composeFile string) (bool, error) {
-	cmd := exec.Command("cmd", "/C", DockerComposeCmd, "-f", composeFile, "ps", "-q")
+	cmd := exec.Command("docker", "compose", "-f", composeFile, "ps", "-q")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -64,7 +64,7 @@ func IsComposeStackRunning(dir, composeFile string) (bool, error) {
 }
 
 func ComposeDown(dir, composeFile string) error {
-	cmd := exec.Command("cmd", "/C", DockerComposeCmd, "-f", composeFile, "down")
+	cmd := exec.Command("docker", "compose", "-f", composeFile, "down")
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -72,7 +72,7 @@ func ComposeDown(dir, composeFile string) error {
 }
 
 func ComposeUp(dir, composeFile string) error {
-	cmd := exec.Command("cmd", "/C", DockerComposeCmd, "-f", composeFile, "up", "-d")
+	cmd := exec.Command("docker", "compose", "-f", composeFile, "up", "-d")
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
