@@ -187,7 +187,7 @@ func ExportDockerVolumeTar(volume, mountPath string) (string, error) {
 	containerName := "tmp-vol-backup-" + volume + "-" + fmt.Sprint(time.Now().UnixNano())
 	fmt.Printf("Exporting docker volume '%s' (mount path: %s) to tarball. Host path: %s\n", volume, mountPath, tarPath)
 	tarCmd := fmt.Sprintf("tar cf /backup/%s.tar -C %s .", volume, mountPath)
-	cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-v", volume+":"+mountPath+":ro", "-v", os.TempDir()+":/backup", "alpine", "sh", "-c", tarCmd)
+	cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-v", volume+":"+mountPath+":ro", "-v", os.TempDir()+":/backup", "alpine:3", "sh", "-c", tarCmd)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
