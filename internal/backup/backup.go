@@ -47,6 +47,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	fmt.Println("zip backup created.")
 
 	for _, f := range volumeTarballs {
+		fmt.Printf("Removing temp file: %s\n", f)
 		os.Remove(f)
 	}
 
@@ -80,6 +81,7 @@ func exportAllComposeVolumes(srcPath, composeFile string) ([]string, error) {
 			fmt.Printf("Warning: could not export volume %s: %v\n", fullVolumeName, err)
 			continue
 		}
+		fmt.Printf("Generated temp file: %s\n", tarPath)
 		volumeTarballs = append(volumeTarballs, tarPath)
 		fmt.Printf("Exported volume %s to %s\n", fullVolumeName, tarPath)
 	}
