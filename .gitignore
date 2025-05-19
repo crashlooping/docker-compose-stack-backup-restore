@@ -26,6 +26,7 @@ go.work.sum
 
 # dcsbr
 dcsbr*
+config.yaml
 
 # developer tools
 .develop

@@ -1,0 +1,7 @@
+# Example config for docker-compose-stack-backup-restore
+backup:
+  formats: ["tar.gz", "zip"] # options: tar.gz, zip, or both
+  sources:
+    - ~/docker/my-toolstack
+    # - another/source/folder
+  target: ~/backup

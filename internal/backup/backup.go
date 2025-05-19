@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/archive"
@@ -54,6 +55,108 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	if stackWasRunning {
 		fmt.Println("Restarting stack...")
 		err = docker.ComposeUp(srcPath, composeFile)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Stack restarted.")
+	}
+	return nil
+}
+
+func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string) error {
+	composeFile, err := docker.FindComposeFile(srcPath)
+	if err != nil {
+		return err
+	}
+	docker.PrintComposeFileStatus(composeFile)
+	stackWasRunning, err := docker.StopStackIfRunning(srcPath, composeFile)
+	if err != nil {
+		return err
+	}
+
+	volumeTarballs, err := exportAllComposeVolumes(srcPath, composeFile)
+	if err != nil {
+		return err
+	}
+
+	folderName := filepath.Base(srcPath)
+	timestamp := time.Now().Format("20060102_150405")
+
+	jobs := makeArchiveJobs(formats, srcPath, dstPath, folderName, timestamp, volumeTarballs)
+	if err := runArchiveJobs(jobs); err != nil {
+		return err
+	}
+
+	cleanupTempFiles(volumeTarballs)
+
+	if err := restartStackIfNeeded(stackWasRunning, srcPath, composeFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp string, volumeTarballs []string) []func() error {
+	var jobs []func() error
+	for _, format := range formats {
+		switch format {
+		case "tar.gz":
+			backupName := fmt.Sprintf("backup_%s_%s.tar.gz", folderName, timestamp)
+			backupPath := filepath.Join(dstPath, backupName)
+			jobs = append(jobs, func() error {
+				fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
+				err := archive.TarGzFolderWithVolumes(srcPath, backupPath, volumeTarballs)
+				if err == nil {
+					fmt.Println("tar.gz backup created.")
+				}
+				return err
+			})
+		case "zip":
+			zipName := fmt.Sprintf("backup_%s_%s.zip", folderName, timestamp)
+			zipPath := filepath.Join(dstPath, zipName)
+			jobs = append(jobs, func() error {
+				fmt.Printf("Creating zip backup: %s\n", zipPath)
+				err := archive.ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
+				if err == nil {
+					fmt.Println("zip backup created.")
+				}
+				return err
+			})
+		}
+	}
+	return jobs
+}
+
+func runArchiveJobs(jobs []func() error) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(jobs))
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(j func() error) {
+			defer wg.Done()
+			errCh <- j()
+		}(job)
+	}
+	wg.Wait()
+	close(errCh)
+	for e := range errCh {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
+func cleanupTempFiles(files []string) {
+	for _, f := range files {
+		fmt.Printf("Removing temp file: %s\n", f)
+		os.Remove(f)
+	}
+}
+
+func restartStackIfNeeded(stackWasRunning bool, srcPath, composeFile string) error {
+	if stackWasRunning {
+		fmt.Println("Restarting stack...")
+		err := docker.ComposeUp(srcPath, composeFile)
 		if err != nil {
 			return err
 		}
