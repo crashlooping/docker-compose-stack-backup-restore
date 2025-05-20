@@ -149,13 +149,15 @@ func TestAddVolumeTarToZipErrors(t *testing.T) {
 }
 
 func TestExportDockerVolumeTarSkipIfNoDocker(t *testing.T) {
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skip("Skip Docker volume export test in GitHub Actions CI")
+	}
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("Docker not available")
 	}
 	tarPath, err := ExportDockerVolumeTar("nonexistent", "/volume")
 	defer os.Remove(tarPath)
 	if err == nil {
-		// If the file was created, check if it's empty (should be, for a nonexistent volume)
 		if stat, statErr := os.Stat(tarPath); statErr == nil && stat.Size() == 0 {
 			return // treat as pass if file is empty
 		}

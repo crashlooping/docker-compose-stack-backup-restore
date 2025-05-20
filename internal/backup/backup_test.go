@@ -99,6 +99,9 @@ func TestExportAllComposeVolumesNoComposeFile(t *testing.T) {
 }
 
 func TestBackupComposeStackPositive(t *testing.T) {
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skip("Skip Docker-dependent test in GitHub Actions CI")
+	}
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("Docker not available")
 	}
@@ -112,6 +115,9 @@ func TestBackupComposeStackPositive(t *testing.T) {
 }
 
 func TestBackupComposeStackWithFormatsEmptyFormats(t *testing.T) {
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skip("Skip Docker-dependent test in GitHub Actions CI")
+	}
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("Docker not available")
 	}

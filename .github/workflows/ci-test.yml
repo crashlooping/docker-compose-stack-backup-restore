@@ -30,9 +30,8 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Run test
-        run: |
-          go test -json ./... | jq -r 'select(.Action == "fail" and .Test) | .Test'
+      - name: Run tests
+        run: go test -json ./... | jq -r 'select(.Action == "fail" and .Test) | .Test'
       - name: Run tests with coverage
         run: go test -v -coverprofile=coverage.out ./...
       - name: Print coverage summary
