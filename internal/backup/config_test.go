@@ -8,7 +8,12 @@ import (
 func TestLoadConfigValid(t *testing.T) {
 	tmp := t.TempDir()
 	file := tmp + "/config.yaml"
-	os.WriteFile(file, []byte(`backup:\n  formats: [\"tar.gz\", \"zip\"]\n  sources:\n    - foo\n  target: bar\n`), 0o644)
+	os.WriteFile(file, []byte(`backup:
+  formats: ["tar.gz", "zip"]
+  sources:
+    - foo
+  target: bar
+`), 0o644)
 	cfg, err := LoadConfig(file)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)

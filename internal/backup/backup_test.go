@@ -2,6 +2,7 @@ package backup
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -98,6 +99,9 @@ func TestExportAllComposeVolumesNoComposeFile(t *testing.T) {
 }
 
 func TestBackupComposeStackPositive(t *testing.T) {
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("Docker not available")
+	}
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, testComposeYml), []byte("version: '3'\nservices:{}\nvolumes:{}\n"), 0o644)
 	dst := t.TempDir()
@@ -108,6 +112,9 @@ func TestBackupComposeStackPositive(t *testing.T) {
 }
 
 func TestBackupComposeStackWithFormatsEmptyFormats(t *testing.T) {
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("Docker not available")
+	}
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, testComposeYml), []byte("version: '3'\nservices:{}\nvolumes:{}\n"), 0o644)
 	dst := t.TempDir()
