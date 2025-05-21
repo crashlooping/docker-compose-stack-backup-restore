@@ -240,3 +240,8 @@ func exportAllComposeVolumes(srcPath, composeFile string) ([]string, error) {
 	}
 	return volumeTarballs, nil
 }
+
+// DecryptBackupFile is a helper for CLI to decrypt a backup file using the archive package.
+func DecryptBackupFile(encPath, outPath, password string) error {
+	return archive.DecryptFile(encPath, outPath, password)
+}

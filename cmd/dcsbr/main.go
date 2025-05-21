@@ -12,7 +12,44 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "restore" {
+	if len(os.Args) == 1 || os.Args[1] == "--help" || os.Args[1] == "-h" {
+		fmt.Println(`docker-compose-stack-backup-restore
+
+Usage:
+  dcsbr.exe backup
+    Run backup for all stacks defined in config.yaml.
+
+  dcsbr.exe restore --target <restore-folder> <backup-archive>
+    Restore a backup archive (.tar.gz, .zip, or .enc) to the target folder.
+
+  dcsbr.exe decrypt --target <target-folder> <backup-archive.enc>
+    Decrypt an encrypted backup file to the target folder (no extraction).
+
+Options:
+  --help, -h   Show this help message.
+
+See README.md for more details and configuration examples.`)
+		return
+	}
+
+	if os.Args[1] == "backup" {
+		cfg, err := backup.LoadConfig("config.yaml")
+		if err != nil {
+			fmt.Println("Error loading config.yaml:", err)
+			os.Exit(1)
+		}
+		for _, srcPath := range cfg.Backup.Sources {
+			absSrc, _ := filepath.Abs(srcPath)
+			absDst, _ := filepath.Abs(cfg.Backup.Target)
+			fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
+			err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password)
+			if err != nil {
+				fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+			}
+		}
+		fmt.Println("All backups completed.")
+		return
+	} else if len(os.Args) > 1 && os.Args[1] == "restore" {
 		restoreCmd := flag.NewFlagSet("restore", flag.ExitOnError)
 		target := restoreCmd.String("target", ".", "Target directory for stack restore")
 		restoreCmd.Parse(os.Args[2:])
@@ -50,22 +87,40 @@ func main() {
 		}
 		fmt.Println("Restore completed successfully.")
 		return
-	}
-	cfg, err := backup.LoadConfig("config.yaml")
-	if err != nil {
-		fmt.Println("Error loading config.yaml:", err)
-		os.Exit(1)
-	}
-	for _, srcPath := range cfg.Backup.Sources {
-		absSrc, _ := filepath.Abs(srcPath)
-		absDst, _ := filepath.Abs(cfg.Backup.Target)
-		fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
-		err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password)
-		if err != nil {
-			fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+	} else if len(os.Args) > 1 && os.Args[1] == "decrypt" {
+		decryptCmd := flag.NewFlagSet("decrypt", flag.ExitOnError)
+		target := decryptCmd.String("target", ".", "Target directory for decrypted file")
+		decryptCmd.Parse(os.Args[2:])
+		if decryptCmd.NArg() < 1 {
+			fmt.Println("Usage: dcsbr decrypt --target DIR <backup-archive.enc>")
+			os.Exit(1)
 		}
+		encPath := decryptCmd.Arg(0)
+		if !strings.HasSuffix(encPath, ".enc") {
+			fmt.Println("Error: Only .enc files can be decrypted with this command.")
+			os.Exit(1)
+		}
+		cfg, _ := backup.LoadConfig("config.yaml")
+		password := ""
+		if cfg != nil && cfg.Backup.Password != "" {
+			password = cfg.Backup.Password
+		} else {
+			fmt.Print("Enter password to decrypt backup: ")
+			var pw string
+			fmt.Scanln(&pw)
+			password = strings.TrimSpace(pw)
+		}
+		outName := filepath.Base(encPath[:len(encPath)-4])
+		outPath := filepath.Join(*target, outName)
+		fmt.Printf("Decrypting %s -> %s\n", encPath, outPath)
+		err := backup.DecryptBackupFile(encPath, outPath, password)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Decryption failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Decryption completed successfully.")
+		return
 	}
-	fmt.Println("All backups completed.")
 }
 
 func extractStackNameFromArchive(archivePath string) string {

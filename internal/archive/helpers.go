@@ -367,6 +367,9 @@ func CheckDirReadable(dir string) error {
 
 // EncryptFile encrypts srcPath to dstPath using password (AES-256-CFB). Overwrites dstPath if exists.
 func EncryptFile(srcPath, dstPath, password string) error {
+	if len(password) < 16 {
+		return fmt.Errorf("encryption password must be at least 16 characters long")
+	}
 	key := sha256.Sum256([]byte(password))
 	in, err := os.Open(srcPath)
 	if err != nil {
