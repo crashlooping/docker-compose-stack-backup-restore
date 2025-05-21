@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 type RestoreOptions struct {
 	TargetDir string // where to extract stack folder (and volumes if not docker)
+	Password  string // password for decryption (optional)
 }
 
 // RestoreFromBackup extracts the stack and volumes from a backup archive.
@@ -27,13 +29,33 @@ func RestoreFromBackup(archivePath string, opts RestoreOptions) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	fmt.Printf("[restore] Extracting archive %s to temp dir...\n", archivePath)
-	if strings.HasSuffix(archivePath, ".tar.gz") {
-		err = archive.ExtractTarGz(archivePath, tmpDir)
-	} else if strings.HasSuffix(archivePath, ".zip") {
-		err = archive.ExtractZip(archivePath, tmpDir)
+	// If encrypted, prompt for password if not provided
+	isEnc := strings.HasSuffix(archivePath, ".enc")
+	archiveToExtract := archivePath
+	if isEnc {
+		password := opts.Password
+		if password == "" {
+			fmt.Print("Enter password to decrypt backup: ")
+			reader := bufio.NewReader(os.Stdin)
+			pw, _ := reader.ReadString('\n')
+			password = strings.TrimSpace(pw)
+		}
+		decPath := archivePath[:len(archivePath)-4] // remove .enc
+		fmt.Printf("[restore] Decrypting %s...\n", archivePath)
+		if err := archive.DecryptFile(archivePath, decPath, password); err != nil {
+			return fmt.Errorf("failed to decrypt backup: %w", err)
+		}
+		archiveToExtract = decPath
+		defer os.Remove(archiveToExtract)
+	}
+
+	fmt.Printf("[restore] Extracting archive %s to temp dir...\n", archiveToExtract)
+	if strings.HasSuffix(archiveToExtract, ".tar.gz") {
+		err = archive.ExtractTarGz(archiveToExtract, tmpDir)
+	} else if strings.HasSuffix(archiveToExtract, ".zip") {
+		err = archive.ExtractZip(archiveToExtract, tmpDir)
 	} else {
-		return fmt.Errorf("unsupported archive format: %s", archivePath)
+		return fmt.Errorf("unsupported archive format: %s", archiveToExtract)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to extract archive: %w", err)

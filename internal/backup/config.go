@@ -8,9 +8,10 @@ import (
 
 type Config struct {
 	Backup struct {
-		Formats []string `yaml:"formats"`
-		Sources []string `yaml:"sources"`
-		Target  string   `yaml:"target"`
+		Formats  []string `yaml:"formats"`
+		Sources  []string `yaml:"sources"`
+		Target   string   `yaml:"target"`
+		Password string   `yaml:"password"`
 	} `yaml:"backup"`
 }
 

@@ -4,6 +4,10 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -359,4 +363,69 @@ func CheckDirReadable(dir string) error {
 		return fmt.Errorf("unreadable files or directories detected:\n%s", strings.Join(unreadable, "\n"))
 	}
 	return nil
+}
+
+// EncryptFile encrypts srcPath to dstPath using password (AES-256-CFB). Overwrites dstPath if exists.
+func EncryptFile(srcPath, dstPath, password string) error {
+	key := sha256.Sum256([]byte(password))
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		return err
+	}
+	if _, err := out.Write(iv); err != nil {
+		return err
+	}
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return err
+	}
+	stream := cipher.NewCFBEncrypter(block, iv)
+	writer := &cipher.StreamWriter{S: stream, W: out}
+	_, err = io.Copy(writer, in)
+	return err
+}
+
+// DecryptFile decrypts srcPath to dstPath using password (AES-256-CFB). Returns error if password is wrong.
+func DecryptFile(srcPath, dstPath, password string) error {
+	key := sha256.Sum256([]byte(password))
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(in, iv); err != nil {
+		return err
+	}
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return err
+	}
+	stream := cipher.NewCFBDecrypter(block, iv)
+	out, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	reader := &cipher.StreamReader{S: stream, R: in}
+	_, err = io.Copy(out, reader)
+	return err
+}
+
+func init() {
+	// Ensure the temp directory exists
+	if err := os.MkdirAll(os.TempDir(), 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create temp directory: %v\n", err)
+		os.Exit(1)
+	}
 }

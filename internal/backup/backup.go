@@ -11,6 +11,11 @@ import (
 	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/docker"
 )
 
+const (
+	backupTarGzPattern = "backup_%s_%s.tar.gz"
+	backupZipPattern   = "backup_%s_%s.zip"
+)
+
 func BackupComposeStack(srcPath, dstPath string) error {
 	// Check permissions before stopping stack or backing up
 	err := archive.CheckDirReadable(srcPath)
@@ -40,7 +45,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 
 	folderName := filepath.Base(srcPath)
 	timestamp := time.Now().Format("20060102_150405")
-	backupName := fmt.Sprintf("backup_%s_%s.tar.gz", folderName, timestamp)
+	backupName := fmt.Sprintf(backupTarGzPattern, folderName, timestamp)
 	backupPath := filepath.Join(dstPath, backupName)
 	fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
 	err = archive.TarGzFolderWithVolumes(srcPath, backupPath, volumeTarballs)
@@ -49,7 +54,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	}
 	fmt.Println("tar.gz backup created.")
 
-	zipName := fmt.Sprintf("backup_%s_%s.zip", folderName, timestamp)
+	zipName := fmt.Sprintf(backupZipPattern, folderName, timestamp)
 	zipPath := filepath.Join(dstPath, zipName)
 	fmt.Printf("Creating zip backup: %s\n", zipPath)
 	err = archive.ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
@@ -74,7 +79,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	return nil
 }
 
-func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string) error {
+func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, password string) error {
 	if len(formats) == 0 {
 		return nil
 	}
@@ -109,6 +114,27 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string) er
 		return err
 	}
 
+	// Encrypt each backup file if password is set
+	if password != "" {
+		for _, format := range formats {
+			var backupName string
+			switch format {
+			case "tar.gz":
+				backupName = fmt.Sprintf(backupTarGzPattern, folderName, timestamp)
+			case "zip":
+				backupName = fmt.Sprintf(backupZipPattern, folderName, timestamp)
+			}
+			backupPath := filepath.Join(dstPath, backupName)
+			encPath := backupPath + ".enc"
+			fmt.Printf("Encrypting %s -> %s\n", backupPath, encPath)
+			err := archive.EncryptFile(backupPath, encPath, password)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt backup: %w", err)
+			}
+			os.Remove(backupPath)
+		}
+	}
+
 	cleanupTempFiles(volumeTarballs)
 
 	if err := restartStackIfNeeded(stackWasRunning, srcPath, composeFile); err != nil {
@@ -122,7 +148,7 @@ func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp s
 	for _, format := range formats {
 		switch format {
 		case "tar.gz":
-			backupName := fmt.Sprintf("backup_%s_%s.tar.gz", folderName, timestamp)
+			backupName := fmt.Sprintf(backupTarGzPattern, folderName, timestamp)
 			backupPath := filepath.Join(dstPath, backupName)
 			jobs = append(jobs, func() error {
 				fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
@@ -133,7 +159,7 @@ func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp s
 				return err
 			})
 		case "zip":
-			zipName := fmt.Sprintf("backup_%s_%s.zip", folderName, timestamp)
+			zipName := fmt.Sprintf(backupZipPattern, folderName, timestamp)
 			zipPath := filepath.Join(dstPath, zipName)
 			jobs = append(jobs, func() error {
 				fmt.Printf("Creating zip backup: %s\n", zipPath)

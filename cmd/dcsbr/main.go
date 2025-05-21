@@ -37,6 +37,13 @@ func main() {
 			os.Exit(0)
 		}
 		opts := backup.RestoreOptions{TargetDir: resolvedTarget}
+		// If encrypted, pass password from config if present
+		if strings.HasSuffix(archivePath, ".enc") {
+			cfg, _ := backup.LoadConfig("config.yaml")
+			if cfg != nil && cfg.Backup.Password != "" {
+				opts.Password = cfg.Backup.Password
+			}
+		}
 		if err := backup.RestoreFromBackup(archivePath, opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Restore failed: %v\n", err)
 			os.Exit(1)
@@ -53,7 +60,7 @@ func main() {
 		absSrc, _ := filepath.Abs(srcPath)
 		absDst, _ := filepath.Abs(cfg.Backup.Target)
 		fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
-		err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats)
+		err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password)
 		if err != nil {
 			fmt.Printf("Error backing up %s: %v\n", absSrc, err)
 		}

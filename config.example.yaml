@@ -5,3 +5,4 @@ backup:
     - ~/docker/my-toolstack
     # - another/source/folder
   target: ~/backup
+  password: rahreeJaGh5ootu8Ahpohng1shah5Ees # optional, for encryption
