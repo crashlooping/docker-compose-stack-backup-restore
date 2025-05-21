@@ -136,10 +136,3 @@ func TestRestartStackIfNeededTrue(t *testing.T) {
 		t.Error("Expected error for ComposeUp on nonexistent dir")
 	}
 }
-
-func TestExportAllComposeVolumesErrorOnList(t *testing.T) {
-	_, err := exportAllComposeVolumes(nonexistentDir, testComposeYml)
-	if err == nil {
-		t.Error("Expected error for ListComposeVolumes on nonexistent dir")
-	}
-}

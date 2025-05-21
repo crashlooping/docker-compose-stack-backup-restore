@@ -73,6 +73,10 @@ func AddFileToTar(srcDir, path string, info os.FileInfo, err error, tarw *tar.Wr
 	if err := tarw.WriteHeader(hdr); err != nil {
 		return err
 	}
+	if info.IsDir() {
+		// Always write header for directories, even if empty
+		return nil
+	}
 	if info.Mode().IsRegular() {
 		file, err := os.Open(path)
 		if err != nil {
@@ -148,7 +152,9 @@ func AddFileToZipWithGitIgnore(srcDir, path string, info os.FileInfo, err error,
 		return nil
 	}
 	if info.IsDir() {
-		return nil
+		// Always create directory entry in zip, even if empty
+		_, err := zipw.Create(relPath + "/")
+		return err
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -194,4 +200,163 @@ func ExportDockerVolumeTar(volume, mountPath string) (string, error) {
 		return "", err
 	}
 	return tarPath, nil
+}
+
+// ExtractTarGz extracts a .tar.gz archive to a target directory
+func ExtractTarGz(src, dest string) error {
+	f, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+	tarReader := tar.NewReader(gz)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(dest, hdr.Name)
+		if hdr.FileInfo().IsDir() {
+			os.MkdirAll(path, hdr.FileInfo().Mode())
+			continue
+		}
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdr.FileInfo().Mode())
+		if err != nil {
+			return err
+		}
+		io.Copy(out, tarReader)
+		out.Close()
+	}
+	return nil
+}
+
+// ExtractZip extracts a .zip archive to a target directory
+func ExtractZip(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	for _, f := range r.File {
+		path := filepath.Join(dest, f.Name)
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(path, f.Mode())
+			continue
+		}
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return err
+		}
+		in, err := f.Open()
+		if err != nil {
+			out.Close()
+			return err
+		}
+		io.Copy(out, in)
+		in.Close()
+		out.Close()
+	}
+	return nil
+}
+
+// ExtractTar extracts a .tar archive to a target directory
+func ExtractTar(src, dest string) error {
+	f, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	tarReader := tar.NewReader(f)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(dest, hdr.Name)
+		if hdr.FileInfo().IsDir() {
+			os.MkdirAll(path, hdr.FileInfo().Mode())
+			continue
+		}
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdr.FileInfo().Mode())
+		if err != nil {
+			return err
+		}
+		io.Copy(out, tarReader)
+		out.Close()
+	}
+	return nil
+}
+
+// CopyDir copies a directory recursively
+func CopyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		tgt := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(tgt, info.Mode())
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(tgt, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		_, err = io.Copy(out, in)
+		return err
+	})
+}
+
+// CheckDirReadable walks a directory and returns an error if any file or directory cannot be read (stat or open).
+func CheckDirReadable(dir string) error {
+	var unreadable []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			unreadable = append(unreadable, path+": "+err.Error())
+			// Skip further descent into this directory
+			if os.IsPermission(err) && info != nil && info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !info.IsDir() {
+			f, err := os.Open(path)
+			if err != nil {
+				unreadable = append(unreadable, path+": "+err.Error())
+				return nil
+			}
+			f.Close()
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(unreadable) > 0 {
+		return fmt.Errorf("unreadable files or directories detected:\n%s", strings.Join(unreadable, "\n"))
+	}
+	return nil
 }

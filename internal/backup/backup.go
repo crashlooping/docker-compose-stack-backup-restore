@@ -12,18 +12,29 @@ import (
 )
 
 func BackupComposeStack(srcPath, dstPath string) error {
+	// Check permissions before stopping stack or backing up
+	err := archive.CheckDirReadable(srcPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
+		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
+		return err
+	}
+
 	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[debug] FindComposeFile error: %v\n", err)
 		return err
 	}
 	docker.PrintComposeFileStatus(composeFile)
 	stackWasRunning, err := docker.StopStackIfRunning(srcPath, composeFile)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[debug] StopStackIfRunning error: %v\n", err)
 		return err
 	}
 
 	volumeTarballs, err := exportAllComposeVolumes(srcPath, composeFile)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[debug] exportAllComposeVolumes error: %v\n", err)
 		return err
 	}
 
@@ -64,6 +75,17 @@ func BackupComposeStack(srcPath, dstPath string) error {
 }
 
 func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string) error {
+	if len(formats) == 0 {
+		return nil
+	}
+	// Check permissions before stopping stack or backing up
+	err := archive.CheckDirReadable(srcPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
+		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
+		return err
+	}
+
 	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
 		return err
@@ -158,6 +180,7 @@ func restartStackIfNeeded(stackWasRunning bool, srcPath, composeFile string) err
 		fmt.Println("Restarting stack...")
 		err := docker.ComposeUp(srcPath, composeFile)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "[restart error] Failed to restart stack: %v\n", err)
 			return err
 		}
 		fmt.Println("Stack restarted.")
@@ -173,7 +196,8 @@ func exportAllComposeVolumes(srcPath, composeFile string) ([]string, error) {
 	fmt.Println("Detecting and exporting docker volumes...")
 	volumes, err := docker.ListComposeVolumes(srcPath, composeFile)
 	if err != nil {
-		return nil, err
+		fmt.Fprintf(os.Stderr, "Warning: could not list Docker volumes for stack at %s: %v\nContinuing backup without volumes.\n", srcPath, err)
+		return volumeTarballs, nil
 	}
 	stackName := filepath.Base(srcPath)
 	for _, v := range volumes {

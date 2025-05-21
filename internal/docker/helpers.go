@@ -8,9 +8,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-const DockerComposeCmd = "docker compose"
+const (
+	DockerComposeCmd       = "docker compose"
+	DefaultVolumeMountPath = "/volume"
+)
 
 func FindComposeFile(dir string) (string, error) {
 	yml := filepath.Join(dir, "docker-compose.yml")
@@ -103,10 +107,10 @@ func GetVolumeMountPathFromCompose(composeFile, volume, srcPath string) string {
 	composePath := filepath.Join(srcPath, composeFile)
 	f, err := os.Open(composePath)
 	if err != nil {
-		return "/volume" // fallback
+		return DefaultVolumeMountPath // fallback
 	}
 	defer f.Close()
-	var mountPath string = "/volume" // default fallback
+	var mountPath string = DefaultVolumeMountPath // default fallback
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -124,4 +128,16 @@ func GetVolumeMountPathFromCompose(composeFile, volume, srcPath string) string {
 		}
 	}
 	return mountPath
+}
+
+// RestoreVolumeFromTar restores a Docker volume from a tarball using a temporary container
+func RestoreVolumeFromTar(volume, tarPath string) error {
+	containerName := "tmp-vol-restore-" + volume + "-" + fmt.Sprint(time.Now().UnixNano())
+	mountPath := DefaultVolumeMountPath
+	// Create volume if not exists
+	_ = exec.Command("docker", "volume", "create", volume).Run()
+	cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-v", volume+":"+mountPath, "-v", tarPath+":/backup.tar:ro", "alpine:3", "sh", "-c", "cd "+mountPath+" && tar xf /backup.tar")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
