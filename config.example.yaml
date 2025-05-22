@@ -6,3 +6,4 @@ backup:
     # - another/source/folder
   target: ~/backup
   password: rahreeJaGh5ootu8Ahpohng1shah5Ees # optional, for encryption
+  max_backups: 10 # optional, default is 10. Maximum number of backup files to keep per stack/format

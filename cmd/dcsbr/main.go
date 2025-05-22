@@ -42,7 +42,7 @@ See README.md for more details and configuration examples.`)
 			absSrc, _ := filepath.Abs(srcPath)
 			absDst, _ := filepath.Abs(cfg.Backup.Target)
 			fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
-			err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password)
+			err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups)
 			if err != nil {
 				fmt.Printf("Error backing up %s: %v\n", absSrc, err)
 			}

@@ -56,7 +56,7 @@ func TestTarGzFolderAndZipFolder(t *testing.T) {
 
 func TestBackupComposeStackWithFormatsErrors(t *testing.T) {
 	dst := t.TempDir()
-	err := BackupComposeStackWithFormats(nonexistentDir, dst, []string{"tar.gz", "zip"}, "")
+	err := BackupComposeStackWithFormats(nonexistentDir, dst, []string{"tar.gz", "zip"}, "", 10)
 	if err == nil {
 		t.Error("Expected error for nonexistent source")
 	}
@@ -124,7 +124,7 @@ func TestBackupComposeStackWithFormatsEmptyFormats(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, testComposeYml), []byte("version: '3'\nservices:{}\nvolumes:{}\n"), 0o644)
 	dst := t.TempDir()
-	err := BackupComposeStackWithFormats(dir, dst, []string{}, "") // pass empty password for test
+	err := BackupComposeStackWithFormats(dir, dst, []string{}, "", 10) // pass empty password for test
 	if err != nil {
 		t.Errorf(errMsg, err)
 	}

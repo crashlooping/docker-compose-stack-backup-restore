@@ -8,10 +8,11 @@ import (
 
 type Config struct {
 	Backup struct {
-		Formats  []string `yaml:"formats"`
-		Sources  []string `yaml:"sources"`
-		Target   string   `yaml:"target"`
-		Password string   `yaml:"password"`
+		Formats    []string `yaml:"formats"`
+		Sources    []string `yaml:"sources"`
+		Target     string   `yaml:"target"`
+		Password   string   `yaml:"password"`
+		MaxBackups int      `yaml:"max_backups"`
 	} `yaml:"backup"`
 }
 
@@ -25,6 +26,9 @@ func LoadConfig(path string) (*Config, error) {
 	dec := yaml.NewDecoder(f)
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, err
+	}
+	if cfg.Backup.MaxBackups <= 0 {
+		cfg.Backup.MaxBackups = 10
 	}
 	return &cfg, nil
 }

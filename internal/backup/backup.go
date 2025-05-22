@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -79,7 +80,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	return nil
 }
 
-func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, password string) error {
+func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, password string, maxBackups int) error {
 	if len(formats) == 0 {
 		return nil
 	}
@@ -135,12 +136,25 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 		}
 	}
 
+	cleanupBackupsAfterRun(dstPath, folderName, formats, password != "", maxBackups)
+
 	cleanupTempFiles(volumeTarballs)
 
 	if err := restartStackIfNeeded(stackWasRunning, srcPath, composeFile); err != nil {
 		return err
 	}
 	return nil
+}
+
+// cleanupBackupsAfterRun enforces maxBackups for all formats, encrypted or not.
+func cleanupBackupsAfterRun(dstPath, stackName string, formats []string, encrypted bool, maxBackups int) {
+	for _, format := range formats {
+		if encrypted {
+			cleanupOldBackups(dstPath, stackName, format+".enc", maxBackups)
+		} else {
+			cleanupOldBackups(dstPath, stackName, format, maxBackups)
+		}
+	}
 }
 
 func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp string, volumeTarballs []string) []func() error {
@@ -210,6 +224,24 @@ func restartStackIfNeeded(stackWasRunning bool, srcPath, composeFile string) err
 			return err
 		}
 		fmt.Println("Stack restarted.")
+	}
+	return nil
+}
+
+func cleanupOldBackups(dstPath, stackName, format string, maxBackups int) error {
+	pattern := "backup_" + stackName + "_*." + format
+	files, err := filepath.Glob(filepath.Join(dstPath, pattern))
+	if err != nil {
+		return err
+	}
+	if len(files) <= maxBackups {
+		return nil
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i] > files[j] // reverse lexicographical, newest first
+	})
+	for _, f := range files[maxBackups:] {
+		os.Remove(f)
 	}
 	return nil
 }
