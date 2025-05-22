@@ -136,3 +136,17 @@ func TestRestartStackIfNeededTrue(t *testing.T) {
 		t.Error("Expected error for ComposeUp on nonexistent dir")
 	}
 }
+
+func TestDecryptBackupFile(t *testing.T) {
+	err := DecryptBackupFile("notfound.enc", "out", "password")
+	if err == nil {
+		t.Error("expected error for missing encrypted file")
+	}
+}
+
+func TestCleanupOldBackups(t *testing.T) {
+	err := cleanupOldBackups(t.TempDir(), "stack", "zip", 1)
+	if err != nil && !os.IsNotExist(err) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

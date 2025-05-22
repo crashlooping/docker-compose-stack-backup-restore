@@ -101,3 +101,10 @@ func TestGetVolumeMountPathFromComposeFallback(t *testing.T) {
 		t.Errorf("Expected fallback /volume, got %v", mountPath)
 	}
 }
+
+func TestRestoreVolumeFromTar(t *testing.T) {
+	err := RestoreVolumeFromTar("vol", "notfound.tar")
+	if err == nil {
+		t.Error("expected error for missing tar file")
+	}
+}

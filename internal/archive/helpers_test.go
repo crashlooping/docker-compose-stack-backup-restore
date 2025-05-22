@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	fileTxt = "file.txt"
 	errMsg  = "Expected no error, got %v"
+	fileTxt = "file.txt"
 )
 
 func TestArchiveHelpersSanity(t *testing.T) {
@@ -162,5 +162,66 @@ func TestExportDockerVolumeTarSkipIfNoDocker(t *testing.T) {
 			return // treat as pass if file is empty
 		}
 		t.Errorf("Expected error for nonexistent volume, got tarPath=%v", tarPath)
+	}
+}
+
+func TestEncryptFileAndDecryptFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	src := filepath.Join(tmpDir, "test.txt")
+	dst := filepath.Join(tmpDir, "test.txt.enc")
+	dec := filepath.Join(tmpDir, "test.txt.dec")
+	password := "thisisaverysecurepassword"
+	content := []byte("secret data")
+	if err := os.WriteFile(src, content, 0o600); err != nil {
+		t.Fatalf("failed to write src: %v", err)
+	}
+	if err := EncryptFile(src, dst, password); err != nil {
+		t.Errorf("EncryptFile failed: %v", err)
+	}
+	if err := DecryptFile(dst, dec, password); err != nil {
+		t.Errorf("DecryptFile failed: %v", err)
+	}
+	decContent, err := os.ReadFile(dec)
+	if err != nil {
+		t.Fatalf("failed to read decrypted file: %v", err)
+	}
+	if string(decContent) != string(content) {
+		t.Errorf("decrypted content mismatch: got %q, want %q", decContent, content)
+	}
+}
+
+func TestCheckDirReadable(t *testing.T) {
+	dir := t.TempDir()
+	if err := CheckDirReadable(dir); err != nil {
+		t.Errorf("CheckDirReadable failed: %v", err)
+	}
+}
+
+func TestCopyDir(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "dst")
+	file := filepath.Join(src, fileTxt)
+	if err := os.WriteFile(file, []byte("data"), 0o600); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := CopyDir(src, dst); err != nil {
+		t.Errorf("CopyDir failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, fileTxt)); err != nil {
+		t.Errorf("file not copied: %v", err)
+	}
+}
+
+func TestExtractTarGzZipTar(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Just check that the functions return error for non-existent files
+	if err := ExtractTarGz("nofile.tar.gz", tmpDir); err == nil {
+		t.Error("expected error for ExtractTarGz with non-existent file")
+	}
+	if err := ExtractZip("nofile.zip", tmpDir); err == nil {
+		t.Error("expected error for ExtractZip with non-existent file")
+	}
+	if err := ExtractTar("nofile.tar", tmpDir); err == nil {
+		t.Error("expected error for ExtractTar with non-existent file")
 	}
 }
