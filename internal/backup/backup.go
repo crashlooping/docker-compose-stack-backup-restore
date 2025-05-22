@@ -148,6 +148,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 
 // cleanupBackupsAfterRun enforces maxBackups for all formats, encrypted or not.
 func cleanupBackupsAfterRun(dstPath, stackName string, formats []string, encrypted bool, maxBackups int) {
+	fmt.Print("[retention] Checking max_backups for all formats...\n")
 	for _, format := range formats {
 		if encrypted {
 			cleanupOldBackups(dstPath, stackName, format+".enc", maxBackups)
@@ -234,13 +235,16 @@ func cleanupOldBackups(dstPath, stackName, format string, maxBackups int) error 
 	if err != nil {
 		return err
 	}
+	fmt.Printf("[retention] Checking max_backups for %s (format: %s): found %d files, max allowed is %d\n", stackName, format, len(files), maxBackups)
 	if len(files) <= maxBackups {
+		fmt.Printf("[retention] No pruning needed for %s (format: %s)\n", stackName, format)
 		return nil
 	}
 	sort.Slice(files, func(i, j int) bool {
 		return files[i] > files[j] // reverse lexicographical, newest first
 	})
 	for _, f := range files[maxBackups:] {
+		fmt.Printf("[retention] Removing old backup: %s\n", f)
 		os.Remove(f)
 	}
 	return nil

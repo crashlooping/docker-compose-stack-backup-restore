@@ -102,6 +102,14 @@ You can adjust the config at any time to add/remove stacks, change backup format
   - The decrypted file will be written to `<target-folder>` with the `.enc` extension removed.
   - If you have a password in your config, it will be used automatically. Otherwise, you will be prompted for the password.
 
+- **Verify config:**
+
+  ```sh
+  dcsbr.exe verify
+  ```
+
+  Prints and verifies the config.yaml file, masking the password field.
+
 - **Help:**
 
   ```sh

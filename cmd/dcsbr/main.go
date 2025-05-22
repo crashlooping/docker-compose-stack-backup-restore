@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/backup"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -24,6 +25,9 @@ Usage:
 
   dcsbr.exe decrypt --target <target-folder> <backup-archive.enc>
     Decrypt an encrypted backup file to the target folder (no extraction).
+
+  dcsbr.exe verify
+    Print and verify the config.yaml file, masking the password field.
 
 Options:
   --help, -h   Show this help message.
@@ -119,6 +123,26 @@ See README.md for more details and configuration examples.`)
 			os.Exit(1)
 		}
 		fmt.Println("Decryption completed successfully.")
+		return
+	} else if len(os.Args) > 1 && (os.Args[1] == "verify" || os.Args[1] == "--verify") {
+		cfg, err := backup.LoadConfig("config.yaml")
+		if err != nil {
+			fmt.Println("Error loading config.yaml:", err)
+			os.Exit(1)
+		}
+		// Mask the password
+		maskedCfg := *cfg
+		if maskedCfg.Backup.Password != "" {
+			maskedCfg.Backup.Password = strings.Repeat("*", len(maskedCfg.Backup.Password))
+		}
+		out, err := yaml.Marshal(&maskedCfg)
+		if err != nil {
+			fmt.Println("Error marshaling config:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Config loaded and verified:")
+		fmt.Println(string(out))
+		fmt.Println("Config verification successful.")
 		return
 	}
 }
