@@ -13,6 +13,7 @@ type Config struct {
 		Target     string   `yaml:"target"`
 		Password   string   `yaml:"password"`
 		MaxBackups int      `yaml:"max_backups"`
+		Prefix     string   `yaml:"prefix"`
 	} `yaml:"backup"`
 }
 

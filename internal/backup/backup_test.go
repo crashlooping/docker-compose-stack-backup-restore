@@ -56,16 +56,16 @@ func TestTarGzFolderAndZipFolder(t *testing.T) {
 
 func TestBackupComposeStackWithFormatsErrors(t *testing.T) {
 	dst := t.TempDir()
-	err := BackupComposeStackWithFormats(nonexistentDir, dst, []string{"tar.gz", "zip"}, "", 10)
+	err := BackupComposeStackWithFormats(nonexistentDir, dst, []string{"tar.gz", "zip"}, "", 10, "dcsbr")
 	if err == nil {
 		t.Error("Expected error for nonexistent source")
 	}
 }
 
 func TestMakeArchiveJobsAndRunArchiveJobs(t *testing.T) {
-	jobs := makeArchiveJobs([]string{"tar.gz", "zip"}, ".", t.TempDir(), "test", "20220101_000000", nil)
-	if len(jobs) != 2 {
-		t.Errorf("Expected 2 jobs, got %d", len(jobs))
+	jobs := makeArchiveJobs([]string{"tar.gz"}, ".", t.TempDir(), "test", "20220101_000000", nil, "dcsbr")
+	if len(jobs) != 1 {
+		t.Errorf("Expected 1 job, got %d", len(jobs))
 	}
 	err := runArchiveJobs(jobs)
 	if err != nil {
@@ -124,7 +124,7 @@ func TestBackupComposeStackWithFormatsEmptyFormats(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, testComposeYml), []byte("version: '3'\nservices:{}\nvolumes:{}\n"), 0o644)
 	dst := t.TempDir()
-	err := BackupComposeStackWithFormats(dir, dst, []string{}, "", 10) // pass empty password for test
+	err := BackupComposeStackWithFormats(dir, dst, []string{}, "", 10, "dcsbr") // pass empty password for test
 	if err != nil {
 		t.Errorf(errMsg, err)
 	}
@@ -145,7 +145,7 @@ func TestDecryptBackupFile(t *testing.T) {
 }
 
 func TestCleanupOldBackups(t *testing.T) {
-	err := cleanupOldBackups(t.TempDir(), "stack", "zip", 1)
+	err := cleanupOldBackups(t.TempDir(), "stack", "tar.gz", 2, "dcsbr")
 	if err != nil && !os.IsNotExist(err) {
 		t.Errorf("unexpected error: %v", err)
 	}

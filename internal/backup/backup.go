@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	backupTarGzPattern = "backup_%s_%s.tar.gz"
-	backupZipPattern   = "backup_%s_%s.zip"
+	backupTarGzPattern = "%s_backup_%s_%s.tar.gz"
+	backupZipPattern   = "%s_backup_%s_%s.zip"
 )
 
 func BackupComposeStack(srcPath, dstPath string) error {
@@ -46,7 +46,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 
 	folderName := filepath.Base(srcPath)
 	timestamp := time.Now().Format("20060102_150405")
-	backupName := fmt.Sprintf(backupTarGzPattern, folderName, timestamp)
+	backupName := fmt.Sprintf(backupTarGzPattern, "dcsbr", folderName, timestamp)
 	backupPath := filepath.Join(dstPath, backupName)
 	fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
 	err = archive.TarGzFolderWithVolumes(srcPath, backupPath, volumeTarballs)
@@ -55,7 +55,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	}
 	fmt.Println("tar.gz backup created.")
 
-	zipName := fmt.Sprintf(backupZipPattern, folderName, timestamp)
+	zipName := fmt.Sprintf(backupZipPattern, "dcsbr", folderName, timestamp)
 	zipPath := filepath.Join(dstPath, zipName)
 	fmt.Printf("Creating zip backup: %s\n", zipPath)
 	err = archive.ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
@@ -80,7 +80,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	return nil
 }
 
-func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, password string, maxBackups int) error {
+func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, password string, maxBackups int, prefix string) error {
 	if len(formats) == 0 {
 		return nil
 	}
@@ -110,7 +110,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 	folderName := filepath.Base(srcPath)
 	timestamp := time.Now().Format("20060102_150405")
 
-	jobs := makeArchiveJobs(formats, srcPath, dstPath, folderName, timestamp, volumeTarballs)
+	jobs := makeArchiveJobs(formats, srcPath, dstPath, folderName, timestamp, volumeTarballs, prefix)
 	if err := runArchiveJobs(jobs); err != nil {
 		return err
 	}
@@ -121,9 +121,9 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 			var backupName string
 			switch format {
 			case "tar.gz":
-				backupName = fmt.Sprintf(backupTarGzPattern, folderName, timestamp)
+				backupName = fmt.Sprintf(backupTarGzPattern, prefix, folderName, timestamp)
 			case "zip":
-				backupName = fmt.Sprintf(backupZipPattern, folderName, timestamp)
+				backupName = fmt.Sprintf(backupZipPattern, prefix, folderName, timestamp)
 			}
 			backupPath := filepath.Join(dstPath, backupName)
 			encPath := backupPath + ".enc"
@@ -136,7 +136,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 		}
 	}
 
-	cleanupBackupsAfterRun(dstPath, folderName, formats, password != "", maxBackups)
+	cleanupBackupsAfterRun(dstPath, folderName, formats, password != "", maxBackups, prefix)
 
 	cleanupTempFiles(volumeTarballs)
 
@@ -147,23 +147,23 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 }
 
 // cleanupBackupsAfterRun enforces maxBackups for all formats, encrypted or not.
-func cleanupBackupsAfterRun(dstPath, stackName string, formats []string, encrypted bool, maxBackups int) {
+func cleanupBackupsAfterRun(dstPath, stackName string, formats []string, encrypted bool, maxBackups int, prefix string) {
 	fmt.Print("[retention] Checking max_backups for all formats...\n")
 	for _, format := range formats {
 		if encrypted {
-			cleanupOldBackups(dstPath, stackName, format+".enc", maxBackups)
+			cleanupOldBackups(dstPath, stackName, format+".enc", maxBackups, prefix)
 		} else {
-			cleanupOldBackups(dstPath, stackName, format, maxBackups)
+			cleanupOldBackups(dstPath, stackName, format, maxBackups, prefix)
 		}
 	}
 }
 
-func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp string, volumeTarballs []string) []func() error {
+func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp string, volumeTarballs []string, prefix string) []func() error {
 	var jobs []func() error
 	for _, format := range formats {
 		switch format {
 		case "tar.gz":
-			backupName := fmt.Sprintf(backupTarGzPattern, folderName, timestamp)
+			backupName := fmt.Sprintf(backupTarGzPattern, prefix, folderName, timestamp)
 			backupPath := filepath.Join(dstPath, backupName)
 			jobs = append(jobs, func() error {
 				fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
@@ -174,7 +174,7 @@ func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp s
 				return err
 			})
 		case "zip":
-			zipName := fmt.Sprintf(backupZipPattern, folderName, timestamp)
+			zipName := fmt.Sprintf(backupZipPattern, prefix, folderName, timestamp)
 			zipPath := filepath.Join(dstPath, zipName)
 			jobs = append(jobs, func() error {
 				fmt.Printf("Creating zip backup: %s\n", zipPath)
@@ -229,9 +229,9 @@ func restartStackIfNeeded(stackWasRunning bool, srcPath, composeFile string) err
 	return nil
 }
 
-func cleanupOldBackups(dstPath, stackName, format string, maxBackups int) error {
-	pattern := "backup_" + stackName + "_*." + format
-	files, err := filepath.Glob(filepath.Join(dstPath, pattern))
+func cleanupOldBackups(dstPath, stackName, format string, maxBackups int, prefix string) error {
+	pattern := fmt.Sprintf("%s_backup_%%s_*.%s", prefix, format)
+	files, err := filepath.Glob(filepath.Join(dstPath, fmt.Sprintf(pattern, stackName)))
 	if err != nil {
 		return err
 	}

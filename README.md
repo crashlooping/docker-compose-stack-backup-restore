@@ -33,6 +33,7 @@ Edit `config.yaml` to specify:
 - 🎯 The target folder where all backups will be stored
 - 🔑 (Optional) A password for encryption (must be at least 16 characters)
 - ♻️ (Optional) Maximum number of backups to retain (`max_backups`)
+- **prefix**: Required. All backup files will be prefixed with this value (e.g., `dcsbr_backup_stackname_...`).
 
 **Example `config.yaml`:**
 
@@ -45,6 +46,7 @@ backup:
   target: ~/backup
   password: your-very-strong-password-here # optional, must be >16 chars
   max_backups: 10 # optional, default is 10
+  prefix: dcsbr # required, prefix for all backup files
 ```
 
 ---
@@ -78,7 +80,7 @@ You can adjust the config at any time to add/remove stacks, change backup format
   dcsbr.exe backup
   ```
 
-  Runs a backup using your config.
+  All backup files will be prefixed with the configured value (e.g., `dcsbr_backup_...`).
 
 - **Restore:**
 
@@ -86,8 +88,7 @@ You can adjust the config at any time to add/remove stacks, change backup format
   dcsbr.exe restore --target <restore-folder> <backup-archive>
   ```
 
-  - `<backup-archive>` can be a `.tar.gz`, `.zip`, or an encrypted `.enc` file.
-  - If the backup is encrypted (ends with `.enc`), the tool will prompt you for the password unless it is set in your `config.yaml`.
+  - `<backup-archive>` must start with the configured prefix (e.g., `dcsbr_backup_...`).
   - The tool auto-detects the stack name from the archive and restores to `<restore-folder>/<stack-name>`.
   - Fails if the target folder already exists.
   - Prompts for confirmation before restoring.
@@ -98,7 +99,7 @@ You can adjust the config at any time to add/remove stacks, change backup format
   dcsbr.exe decrypt --target <target-folder> <backup-archive>
   ```
 
-  - `<backup-archive>` must be a `.enc` file created by this tool.
+  - `<backup-archive>` must start with the configured prefix (e.g., `dcsbr_backup_...`).
   - The decrypted file will be written to `<target-folder>` with the `.enc` extension removed.
   - If you have a password in your config, it will be used automatically. Otherwise, you will be prompted for the password.
 

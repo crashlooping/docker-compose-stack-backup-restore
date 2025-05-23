@@ -46,7 +46,12 @@ See README.md for more details and configuration examples.`)
 			absSrc, _ := filepath.Abs(srcPath)
 			absDst, _ := filepath.Abs(cfg.Backup.Target)
 			fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
-			err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups)
+			if cfg.Backup.Password != "" {
+				fmt.Println("[encryption] Password is set. Encrypted backups will be created.")
+			} else {
+				fmt.Println("[encryption] No password set. Backups will NOT be encrypted.")
+			}
+			err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
 			if err != nil {
 				fmt.Printf("Error backing up %s: %v\n", absSrc, err)
 			}
@@ -61,9 +66,13 @@ See README.md for more details and configuration examples.`)
 			fmt.Println("Usage: dcsbr restore [--target DIR] <backup-archive>")
 			os.Exit(1)
 		}
+		cfg, err := backup.LoadConfig("config.yaml")
+		if err != nil {
+			fmt.Println("Error loading config.yaml:", err)
+			os.Exit(1)
+		}
 		archivePath := restoreCmd.Arg(0)
-		// Extract stack name from archive filename
-		stackName := extractStackNameFromArchive(archivePath)
+		stackName := extractStackNameFromArchive(archivePath, cfg.Backup.Prefix)
 		resolvedTarget := filepath.Join(*target, stackName)
 		if err := os.MkdirAll(resolvedTarget, 0o755); err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating target folder: %v\n", err)
@@ -99,12 +108,12 @@ See README.md for more details and configuration examples.`)
 			fmt.Println("Usage: dcsbr decrypt --target DIR <backup-archive.enc>")
 			os.Exit(1)
 		}
-		encPath := decryptCmd.Arg(0)
-		if !strings.HasSuffix(encPath, ".enc") {
-			fmt.Println("Error: Only .enc files can be decrypted with this command.")
+		cfg, err := backup.LoadConfig("config.yaml")
+		if err != nil {
+			fmt.Println("Error loading config.yaml:", err)
 			os.Exit(1)
 		}
-		cfg, _ := backup.LoadConfig("config.yaml")
+		encPath := decryptCmd.Arg(0)
 		password := ""
 		if cfg != nil && cfg.Backup.Password != "" {
 			password = cfg.Backup.Password
@@ -115,9 +124,11 @@ See README.md for more details and configuration examples.`)
 			password = strings.TrimSpace(pw)
 		}
 		outName := filepath.Base(encPath[:len(encPath)-4])
-		outPath := filepath.Join(*target, outName)
-		fmt.Printf("Decrypting %s -> %s\n", encPath, outPath)
-		err := backup.DecryptBackupFile(encPath, outPath, password)
+		if strings.HasPrefix(outName, cfg.Backup.Prefix+"_backup_") {
+			outName = outName[len(cfg.Backup.Prefix+"_backup_"):]
+		}
+		outPath := filepath.Join(*target, cfg.Backup.Prefix+"_backup_"+outName)
+		err = backup.DecryptBackupFile(encPath, outPath, password)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Decryption failed: %v\n", err)
 			os.Exit(1)
@@ -147,17 +158,17 @@ See README.md for more details and configuration examples.`)
 	}
 }
 
-func extractStackNameFromArchive(archivePath string) string {
+func extractStackNameFromArchive(archivePath string, prefix string) string {
 	base := filepath.Base(archivePath)
-	re := regexp.MustCompile(`^backup_(.+?)_\d{8}_\d{6}\.(tar\.gz|zip)$`)
+	re := regexp.MustCompile(fmt.Sprintf(`^%s_backup_(.+?)_\d{8}_\d{6}\.(tar\.gz|zip)$`, regexp.QuoteMeta(prefix)))
 	matches := re.FindStringSubmatch(base)
 	if len(matches) > 1 {
 		return matches[1]
 	}
-	// fallback: remove extension and backup_ prefix
+	// fallback: remove extension and prefix_backup_ prefix
 	name := base
-	if strings.HasPrefix(name, "backup_") {
-		name = name[len("backup_"):]
+	if strings.HasPrefix(name, prefix+"_backup_") {
+		name = name[len(prefix+"_backup_"):]
 	}
 	if idx := strings.Index(name, "_"); idx > 0 {
 		name = name[:idx]
