@@ -42,6 +42,10 @@ See README.md for more details and configuration examples.`)
 			fmt.Println("Error loading config.yaml:", err)
 			os.Exit(1)
 		}
+		if cfg.Backup.Prefix == "" {
+			fmt.Fprintln(os.Stderr, "Error: 'prefix' is required in config.yaml under 'backup'.")
+			os.Exit(1)
+		}
 		for _, srcPath := range cfg.Backup.Sources {
 			absSrc, _ := filepath.Abs(srcPath)
 			absDst, _ := filepath.Abs(cfg.Backup.Target)
@@ -139,6 +143,10 @@ See README.md for more details and configuration examples.`)
 		cfg, err := backup.LoadConfig("config.yaml")
 		if err != nil {
 			fmt.Println("Error loading config.yaml:", err)
+			os.Exit(1)
+		}
+		if cfg.Backup.Prefix == "" {
+			fmt.Fprintln(os.Stderr, "Error: 'prefix' is required in config.yaml under 'backup'.")
 			os.Exit(1)
 		}
 		// Mask the password
