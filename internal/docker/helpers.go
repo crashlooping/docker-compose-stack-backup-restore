@@ -17,13 +17,35 @@ const (
 )
 
 func FindComposeFile(dir string) (string, error) {
-	yml := filepath.Join(dir, "docker-compose.yml")
-	yaml := filepath.Join(dir, "docker-compose.yaml")
-	if _, err := os.Stat(yml); err == nil {
-		return "docker-compose.yml", nil
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
 	}
-	if _, err := os.Stat(yaml); err == nil {
-		return "docker-compose.yaml", nil
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml") {
+			path := filepath.Join(dir, name)
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if strings.HasPrefix(line, "version:") && strings.Contains(line, "'3") {
+					f.Close()
+					return name, nil
+				}
+				if strings.HasPrefix(line, "services:") {
+					f.Close()
+					return name, nil
+				}
+			}
+			f.Close()
+		}
 	}
 	return "", nil // not an error if not found
 }
