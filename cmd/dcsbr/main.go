@@ -17,8 +17,8 @@ func main() {
 		fmt.Println(`docker-compose-stack-backup-restore
 
 Usage:
-  dcsbr.exe backup
-    Run backup for all stacks defined in config.yaml.
+  dcsbr.exe backup [<source>]
+    Run backup for all stacks defined in config.yaml, or only the specified source if provided and present in the sources list.
 
   dcsbr.exe restore --target <restore-folder> <backup-archive>
     Restore a backup archive (.tar.gz, .zip, or .enc) to the target folder.
@@ -45,6 +45,35 @@ See README.md for more details and configuration examples.`)
 		if cfg.Backup.Prefix == "" {
 			fmt.Fprintln(os.Stderr, "Error: 'prefix' is required in config.yaml under 'backup'.")
 			os.Exit(1)
+		}
+		// Support: dcsbr backup <source>
+		if len(os.Args) > 2 {
+			sourceArg := os.Args[2]
+			found := false
+			for _, srcPath := range cfg.Backup.Sources {
+				if srcPath == sourceArg {
+					absSrc, _ := filepath.Abs(srcPath)
+					absDst, _ := filepath.Abs(cfg.Backup.Target)
+					fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
+					if cfg.Backup.Password != "" {
+						fmt.Println("[encryption] Password is set. Encrypted backups will be created.")
+					} else {
+						fmt.Println("[encryption] No password set. Backups will NOT be encrypted.")
+					}
+					err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
+					if err != nil {
+						fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+					}
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Fprintf(os.Stderr, "Error: source '%s' not found in config.yaml sources list.\n", sourceArg)
+				os.Exit(1)
+			}
+			fmt.Println("Backup completed.")
+			return
 		}
 		for _, srcPath := range cfg.Backup.Sources {
 			absSrc, _ := filepath.Abs(srcPath)

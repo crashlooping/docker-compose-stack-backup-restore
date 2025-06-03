@@ -82,6 +82,14 @@ You can adjust the config at any time to add/remove stacks, change backup format
 
   All backup files will be prefixed with the configured value (e.g., `dcsbr_backup_...`).
 
+- **Backup a single source:**
+
+  ```sh
+  dcsbr.exe backup .develop/authentik
+  ```
+
+  Only the specified source from the `sources` list in your config.yaml will be backed up. If the source is not found, an error will be printed. If no source is specified, all sources will be backed up.
+
 - **Restore:**
 
   ```sh

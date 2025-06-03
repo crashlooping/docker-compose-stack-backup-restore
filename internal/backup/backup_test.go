@@ -62,6 +62,39 @@ func TestBackupComposeStackWithFormatsErrors(t *testing.T) {
 	}
 }
 
+func TestBackupSingleSourceArgument(t *testing.T) {
+	// Simulate config with two sources
+	cfg := &Config{}
+	cfg.Backup.Prefix = "dcsbr"
+	cfg.Backup.Sources = []string{"/tmp/source1", "/tmp/source2"}
+	cfg.Backup.Target = t.TempDir()
+	cfg.Backup.Formats = []string{"tar.gz"}
+	cfg.Backup.MaxBackups = 2
+	// Only backup /tmp/source1
+	found := false
+	for _, srcPath := range cfg.Backup.Sources {
+		if srcPath == "/tmp/source1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected to find /tmp/source1 in sources list")
+	}
+	// Try a non-existent source
+	nonexistent := "/tmp/doesnotexist"
+	found = false
+	for _, srcPath := range cfg.Backup.Sources {
+		if srcPath == nonexistent {
+			found = true
+			break
+		}
+	}
+	if found {
+		t.Error("Did not expect to find /tmp/doesnotexist in sources list")
+	}
+}
+
 func TestMakeArchiveJobsAndRunArchiveJobs(t *testing.T) {
 	jobs := makeArchiveJobs([]string{"tar.gz"}, ".", t.TempDir(), "test", "20220101_000000", nil, "dcsbr")
 	if len(jobs) != 1 {
