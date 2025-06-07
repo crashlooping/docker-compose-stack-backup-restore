@@ -8,12 +8,13 @@ import (
 
 type Config struct {
 	Backup struct {
-		Formats    []string `yaml:"formats"`
-		Sources    []string `yaml:"sources"`
-		Target     string   `yaml:"target"`
-		Password   string   `yaml:"password"`
-		MaxBackups int      `yaml:"max_backups"`
-		Prefix     string   `yaml:"prefix"`
+		Formats      []string `yaml:"formats"`
+		Sources      []string `yaml:"sources"`
+		Target       string   `yaml:"target"`
+		Password     string   `yaml:"password"`
+		MaxBackups   int      `yaml:"max_backups"`
+		Prefix       string   `yaml:"prefix"`
+		SudoRequired bool     `yaml:"sudo_required"`
 	} `yaml:"backup"`
 }
 

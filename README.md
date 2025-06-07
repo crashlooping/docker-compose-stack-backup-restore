@@ -47,6 +47,7 @@ backup:
   password: your-very-strong-password-here # optional, must be >16 chars
   max_backups: 10 # optional, default is 10
   prefix: dcsbr # required, prefix for all backup files
+  sudo_required: false # optional, default is false. Set to true if you need sudo to access the source directories
 ```
 
 ---

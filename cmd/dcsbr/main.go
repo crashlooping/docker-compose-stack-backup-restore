@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/backup"
@@ -45,6 +46,13 @@ See README.md for more details and configuration examples.`)
 		if cfg.Backup.Prefix == "" {
 			fmt.Fprintln(os.Stderr, "Error: 'prefix' is required in config.yaml under 'backup'.")
 			os.Exit(1)
+		}
+		// Sudo-required logic: abort if sudo is required and not running as root on Linux
+		if cfg.Backup.SudoRequired {
+			if runtime.GOOS == "linux" && os.Geteuid() != 0 {
+				fmt.Fprintln(os.Stderr, "Error: This backup requires sudo/root privileges. Please run the tool with sudo.")
+				os.Exit(1)
+			}
 		}
 		// Support: dcsbr backup <source>
 		if len(os.Args) > 2 {
