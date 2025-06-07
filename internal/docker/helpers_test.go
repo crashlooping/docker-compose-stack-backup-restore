@@ -3,6 +3,7 @@ package docker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -35,6 +36,18 @@ func TestFindComposeFileYmlAndYaml(t *testing.T) {
 	file, err = FindComposeFile(dir)
 	if err != nil || file != "" {
 		t.Errorf("Expected '', got %v, err: %v", file, err)
+	}
+}
+
+func TestFindComposeFile_MultipleComposeFiles(t *testing.T) {
+	dir := t.TempDir()
+	file1 := filepath.Join(dir, "docker-compose.yml")
+	file2 := filepath.Join(dir, "docker-compose.old.yaml")
+	os.WriteFile(file1, []byte("version: '3'\nservices:{}\n"), 0o644)
+	os.WriteFile(file2, []byte("version: '3'\nservices:{}\n"), 0o644)
+	_, err := FindComposeFile(dir)
+	if err == nil || !strings.Contains(err.Error(), "Multiple docker compose files found") {
+		t.Errorf("Expected error for multiple compose files, got: %v", err)
 	}
 }
 

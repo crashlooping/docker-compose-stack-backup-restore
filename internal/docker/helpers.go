@@ -21,6 +21,7 @@ func FindComposeFile(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	var candidates []string
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -36,16 +37,22 @@ func FindComposeFile(dir string) (string, error) {
 			for scanner.Scan() {
 				line := strings.TrimSpace(scanner.Text())
 				if strings.HasPrefix(line, "version:") && strings.Contains(line, "'3") {
-					f.Close()
-					return name, nil
+					candidates = append(candidates, name)
+					break
 				}
 				if strings.HasPrefix(line, "services:") {
-					f.Close()
-					return name, nil
+					candidates = append(candidates, name)
+					break
 				}
 			}
 			f.Close()
 		}
+	}
+	if len(candidates) > 1 {
+		return "", fmt.Errorf("Multiple docker compose files found: %v. Please keep only one in the folder.", candidates)
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
 	}
 	return "", nil // not an error if not found
 }
