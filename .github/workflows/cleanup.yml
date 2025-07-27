@@ -2,7 +2,7 @@ name: Cleanup Artifacts
 
 on:
   schedule:
-    - cron: '0 2 * * 0'  # Weekly cleanup
+    - cron: '0 2 * * 6'  # Weekly cleanup
   workflow_dispatch:
 
 jobs:
