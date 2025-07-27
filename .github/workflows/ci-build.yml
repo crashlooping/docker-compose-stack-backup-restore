@@ -40,14 +40,17 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.BIN_NAME }}
+          name: build-artifacts-${{ github.run_id }}
           path: bin/${{ matrix.BIN_NAME }}
+          retention-days: 7
+          if-no-files-found: error
       - name: Upload binary to VirusTotal
         id: virustotal
         uses: crazy-max/ghaction-virustotal@v4
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           files: bin/${{ matrix.BIN_NAME }}
+        continue-on-error: true
       - name: Print VirusTotal analysis URLs
         run: |
           echo "VirusTotal analysis URL (analysis): ${{ steps.virustotal.outputs.analysis }}"
@@ -79,6 +82,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          name: build-artifacts-${{ github.run_id }}
           path: ./bin
       - name: Set version from tag
         id: get_version
@@ -88,6 +92,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ./bin/**/*
+            ./bin/*
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
