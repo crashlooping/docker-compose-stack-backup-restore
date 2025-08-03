@@ -40,7 +40,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-${{ github.run_id }}
+          name: build-artifacts-${{ matrix.BIN_NAME }}-${{ github.run_id }}
           path: bin/${{ matrix.BIN_NAME }}
           retention-days: 7
           if-no-files-found: error
