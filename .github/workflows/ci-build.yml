@@ -55,7 +55,7 @@ jobs:
         run: |
           echo "VirusTotal analysis URL (analysis): ${{ steps.virustotal.outputs.analysis }}"
       - name: Write VirusTotal analysis permalink to summary
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const permalink = process.env['VIRUSTOTAL_PERMALINK'] || '';
