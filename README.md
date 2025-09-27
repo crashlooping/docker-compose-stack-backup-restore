@@ -185,6 +185,6 @@ MIT
 
 ## ℹ️ AI Assistance
 
-This project was developed with the assistance and guidance of GitHub Copilot agent mode using GPT-4.1.
+This project was developed with the assistance and guidance of GitHub Copilot.
 
 ---
