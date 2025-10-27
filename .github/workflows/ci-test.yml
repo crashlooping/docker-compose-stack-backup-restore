@@ -9,7 +9,7 @@ on:
     paths-ignore: []
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 0'
+    - cron: "0 3 * * 0"
 
 jobs:
   test:
@@ -30,7 +30,7 @@ jobs:
       - name: Generate HTML coverage report
         run: go tool cover -html=coverage.out -o coverage.html
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-reports
           path: |
