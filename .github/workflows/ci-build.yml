@@ -38,7 +38,7 @@ jobs:
           mkdir -p bin
           GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -v -o bin/${{ matrix.BIN_NAME }} ./cmd/dcsbr
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-artifacts-${{ matrix.BIN_NAME }}-${{ github.run_id }}
           path: bin/${{ matrix.BIN_NAME }}
