@@ -80,7 +80,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: build-artifacts-${{ github.run_id }}
           path: ./bin
