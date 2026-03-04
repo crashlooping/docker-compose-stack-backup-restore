@@ -46,7 +46,7 @@ jobs:
           if-no-files-found: error
       - name: Upload binary to VirusTotal
         id: virustotal
-        uses: crazy-max/ghaction-virustotal@v4
+        uses: crazy-max/ghaction-virustotal@v5
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           files: bin/${{ matrix.BIN_NAME }}
