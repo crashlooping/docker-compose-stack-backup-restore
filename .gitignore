@@ -30,3 +30,6 @@ config.yaml
 
 # developer tools
 .develop
+coverage
+coverage.out
+coverage.html
