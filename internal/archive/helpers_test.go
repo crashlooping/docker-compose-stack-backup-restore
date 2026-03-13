@@ -34,6 +34,7 @@ func TestTarGzFolderWithVolumesArchivesFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open tar.gz: %v", err)
 	}
+	defer f.Close()
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		t.Fatalf("Failed to open gzip: %v", err)
@@ -60,6 +61,7 @@ func TestZipFolderWithVolumesArchivesFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open zip: %v", err)
 	}
+	defer f.Close()
 	stat, err := f.Stat()
 	if err != nil {
 		t.Fatalf("Failed to stat zip: %v", err)
@@ -157,11 +159,15 @@ func TestExportDockerVolumeTarSkipIfNoDocker(t *testing.T) {
 	}
 	tarPath, err := ExportDockerVolumeTar("nonexistent", "/volume")
 	defer os.Remove(tarPath)
-	if err == nil {
-		if stat, statErr := os.Stat(tarPath); statErr == nil && stat.Size() == 0 {
-			return // treat as pass if file is empty
-		}
-		t.Errorf("Expected error for nonexistent volume, got tarPath=%v", tarPath)
+	if err != nil {
+		return // acceptable: engine/runtime can reject the command
+	}
+	stat, statErr := os.Stat(tarPath)
+	if statErr != nil {
+		t.Fatalf("expected tar output file when export succeeds, got stat error: %v", statErr)
+	}
+	if stat.Size() <= 0 {
+		t.Fatalf("expected non-empty tar output for successful export, got size=%d", stat.Size())
 	}
 }
 

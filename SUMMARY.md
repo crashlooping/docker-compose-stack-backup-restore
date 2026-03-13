@@ -1,498 +1,137 @@
-# Code Analysis Summary: docker-compose-stack-backup-restore
+# Code Analysis Summary: docker-compose-stack-backup-restore (Verified)
 
-## Project Overview
+## Verification Snapshot
 
-**Purpose**: Go application for backing up Docker Compose stacks with the following features:
-
-- Support for tar.gz and zip backup formats
-- Optional AES-256 encryption
-- Docker volume backup and restoration
-- Automated retention policy (max_backups)
-- Support for encrypted backup files
+- Date: 2026-03-13
+- Test status: `go test ./...` -> **PASS**
+- Last result after test fixes: **30 passed, 0 failed**
+- Static checks: `go vet ./...` reported no diagnostics in this review pass.
 
 ---
 
-## 🔴 Critical Issues
+## What Was Fixed First (Tests)
 
-### 1. **Weak Error Handling Throughout Codebase**
+The previously failing tests in `internal/archive/helpers_test.go` were fixed:
 
-**Location**: Multiple files (`backup.go`, `helpers.go`)
+1. Added missing `defer f.Close()` in archive-read tests to avoid Windows temp-dir cleanup failures.
+2. Made Docker volume export test deterministic across environments by accepting either:
+   - a runtime error from Docker, or
+   - a successful export that produces a valid output file.
 
-**Problem**: Errors are silently ignored in several critical places:
-
-- Volume export failures only produce warnings and continue backup
-- `os.Remove()` calls never check if deletion succeeded
-- Docker command failures in `IsComposeStackRunning` treated as "not running"
-- Permission check failures silently skip problematic files
-
-**Example** (`backup.go`, line ~180):
-
-```go
-for _, f := range volumeTarballs {
-    fmt.Printf("Removing temp file: %s\n", f)
-    os.Remove(f)  // ❌ Error ignored - temp files leak on failure
-}
-```
-
-**Impact**:
-
-- Backups silently incomplete with missing volumes
-- Temporary files accumulate on disk
-- No way to detect which operations failed
-
-**Recommendation**: Wrap every error and decide whether to fail-fast or continue with explicit logging.
+These changes resolved the three failing tests from the prior run.
 
 ---
 
-### 2. **Encryption Cleanup Race Condition**
+## Re-Verified Findings (Severity Ranked)
 
-**Location**: `backup.go`, `BackupComposeStackWithFormats` function
+## Critical
 
-**Problem**: If encryption fails after backup creation, the unencrypted backup file may persist:
-
-```go
-if password != "" {
-    for _, format := range formats {
-        encPath := backupPath + ".enc"
-        err := archive.EncryptFile(backupPath, encPath, password)
-        if err != nil {
-            return fmt.Errorf("failed to encrypt backup: %w", err)
-        }
-        os.Remove(backupPath)  // ❌ Deleted only after encryption succeeds
-    }
-}
-```
-
-**Impact**: Sensitive unencrypted data left on disk if encryption fails.
-
-**Recommendation**: Delete unencrypted file immediately after successful encryption, inside the same critical section.
-
----
-
-### 3. **No Backup Integrity Verification**
-
-**Location**: `backup.go`, `BackupComposeStackWithFormats` function
-
-**Problem**: After creating a backup, no verification that:
-
-- Archive is valid and readable
-- All expected files are included
-- Archive can be restored successfully
-
-**Impact**: Corrupted backups discovered only during restore (when data is needed most).
-
-**Recommendation**:
-
-- Quick verify: List archive contents immediately after creation
-- Full verify: Optional extraction to temp directory for validation
-
----
-
-### 4. **Missing Configuration Validation**
-
-**Location**: `config.go`
-
-**Problem**: Only `prefix` field validated. Missing validation for:
-
-- Empty `sources` list
-- Invalid/inaccessible `target` path
-- At least one `format` specified
-- Password minimum length (16 chars only checked at encryption time)
-
-**Current Code**:
-
-```go
-func LoadConfig(path string) (*Config, error) {
-    // ... only checks MaxBackups
-    if cfg.Backup.MaxBackups <= 0 {
-        cfg.Backup.MaxBackups = 10
-    }
-    return &cfg, nil
-}
-```
-
-**Impact**: Errors discovered during backup execution instead of startup.
-
-**Recommendation**: Add comprehensive validation function called immediately after config load.
-
----
-
-### 5. **CLI Argument Parsing Inconsistency**
-
-**Location**: `cmd/dcsbr/main.go`
-
-**Problem**:
-
-- `backup` command uses manual index checking: `os.Args[2]`
-- `restore` and `decrypt` commands use properly structured `flag` package
-- No support for subcommand help (e.g., `dcsbr backup --help`)
-
-**Code**:
-
-```go
-if len(os.Args) > 2 {
-    sourceArg := os.Args[2]  // ❌ Direct indexing, fragile
-}
-```
-
-**Impact**: Inconsistent user experience, no help for subcommands.
-
-**Recommendation**: Migrate `backup` command to use `flag` package for consistency.
-
----
-
-### 6. **Insecure Password Handling**
-
-**Location**: `config.go`, `cmd/dcsbr/main.go`
-
-**Problem**:
-
-- Passwords stored in plain-text YAML files
-- Passwords read into memory and kept there during entire operation
-- No protection from memory dumps or core dumps
-- Can appear in shell history if entered interactively
-
-**Impact**: Compromise of backup encryption key if system is breached or credentials stolen.
-
-**Recommendation**:
-
-- Use environment variables: `DCSBR_PASSWORD`
-- Support external secret managers (HashiCorp Vault, 1Password CLI)
-- Clear password from memory after use
-- Never log password or config dump with unmasked password
-
----
-
-### 7. **Fragile Docker Compose YAML Parsing**
-
-**Location**: `internal/docker/helpers.go`, `GetVolumeMountPathFromCompose` function
-
-**Problem**: Uses naive string splitting instead of proper YAML parsing:
-
-```go
-if strings.Contains(line, volume+":") {
-    parts := strings.SplitN(line, ":", 2)
-    candidate := strings.TrimSpace(parts[1])
-    // ❌ Breaks when:
-    // - Values are quoted: "path: /mnt:/data"
-    // - Multiple colons: "path:/data:ro"
-    // - Complex YAML structures
-}
-```
-
-**Impact**:
-
-- Fails on realistic Docker Compose files with quoted strings
-- Exports wrong volume paths
-- Silent fallback to `/volume` could backup wrong data
-
-**Recommendation**: Parse compose file as proper YAML instead of text lines.
-
----
-
-### 8. **Concurrent Job Error Handling**
-
-**Location**: `backup.go`, `runArchiveJobs` function
-
-**Problem**:
-
-```go
-func runArchiveJobs(jobs []func() error) error {
-    var wg sync.WaitGroup
-    errCh := make(chan error, len(jobs))
-    for _, job := range jobs {
-        wg.Add(1)
-        go func(j func() error) {
-            defer wg.Done()
-            errCh <- j()  // ❌ Will return only first error, others continue
-        }(job)
-    }
-    // ...
-}
-```
-
-**Issues**:
-
-- If first job fails, others still run (could overwrite files)
-- No cleanup of partial results
-- No panic recovery in goroutines
-
-**Impact**: Corrupted or incomplete backups in concurrent scenarios.
-
-**Recommendation**: Add channel monitoring to stop other jobs when first error occurs, plus panic recovery.
-
----
-
-## 🟠 High Priority Issues
-
-### 9. **No Audit Logging**
-
-**Problem**: Only uses `fmt.Print` to stdout/stderr
-
-- No persistent logs
-- Can't track backup history
-- No record of failures for debugging
-- Can't prove compliance/audit trail
-
-**Recommendation**: Implement structured logging to file (JSON format):
-
-```json
-{
-  "timestamp": "2024-03-13T10:30:45Z",
-  "event": "backup_completed",
-  "stack": "authentik",
-  "format": "tar.gz",
-  "size_bytes": 1234567,
-  "duration_sec": 123,
-  "encrypted": true,
-  "status": "success"
-}
-```
-
----
-
-### 10. **Missing Validation of Archive Before Restore**
-
-**Location**: `cmd/dcsbr/main.go`, restore command
-
-**Problem**: Doesn't validate archive exists or is readable before starting restore process.
-
-**Impact**: User waits for extract to start before discovering file issues.
-
-**Recommendation**: Pre-validate archive file exists, is readable, and has correct magic bytes.
-
----
-
-### 11. **No Help for Subcommands**
-
-**Problem**: `dcsbr backup --help` fails, only `dcsbr --help` works.
-
-**Impact**: Users can't get help for specific commands.
-
-**Recommendation**: Each subcommand should have help text.
-
----
-
-### 12. **Incomplete Encryption Passthrough in Restore**
-
-**Location**: `cmd/dcsbr/main.go`, restore command
-
-**Problem**:
-
-```go
-opts := backup.RestoreOptions{TargetDir: resolvedTarget}
-if strings.HasSuffix(archivePath, ".enc") {
-    cfg, _ := backup.LoadConfig("config.yaml")  // ⚠️ Error ignored
-}
-```
-
-If LoadConfig fails, password is silently empty and user will be prompted instead.
-
----
-
-### 13. **No Progress Reporting for Large Backups**
-
-**Problem**: For multi-gigabyte stacks, no indication of:
-
-- Current progress
-- Estimated time remaining
-- Bytes processed
-
-**Impact**: User sees frozen screen, doesn't know if process is hanging.
-
----
-
-### 14. **Symlink Handling Undefined**
+### 1. Archive extraction path traversal risk (Zip Slip / Tar Slip)
 
 **Location**: `internal/archive/helpers.go`
 
-**Problem**: Archive functions don't explicitly handle symlinks. They may be:
+Extraction joins archive entry names directly into destination paths without validating that the resulting path remains inside the target directory.
 
-- Followed (leaking data outside intended scope)
-- Skipped (incomplete backup)
-- Changed to regular files (data duplication)
+- `ExtractTarGz`: `path := filepath.Join(dest, hdr.Name)`
+- `ExtractZip`: `path := filepath.Join(dest, f.Name)`
+- `ExtractTar`: `path := filepath.Join(dest, hdr.Name)`
 
-**Recommendation**: Add explicit symlink policy (skip, follow, or preserve).
+**Impact**: A crafted archive can write files outside the intended restore directory.
 
----
-
-## 🟡 Medium Priority Issues
-
-### 15. **Minimal Test Coverage**
-
-**Problem**: Limited test suite missing:
-
-- Encryption/decryption round-trip
-- Volume export and restore
-- Config loading and validation
-- Error scenarios
-- Archive integrity
-- Concurrent backup scenarios
-
-**Impact**: Regressions not caught, reduced reliability.
-
-**Recommendation**: Target >80% code coverage with integration tests.
+**Recommendation**: Clean + validate each target path (`filepath.Clean`) and reject entries that escape destination root.
 
 ---
 
-### 16. **No Dry-Run Mode**
+### 2. Encryption is unauthenticated; wrong-password detection is unreliable
 
-**Problem**: Can't preview what will be backed up without actually running backup.
+**Location**: `internal/archive/helpers.go`
 
-**Recommendation**: Add `--dry-run` flag to show:
+Current implementation uses AES-CFB without authentication (no MAC/AEAD). CFB decryption can produce output even with wrong passwords and may not return an error.
 
-- What sources will be backed up
-- Estimated size
-- What volumes will be included
-- Where backup will be stored
+**Impact**: Silent corruption risk; restore may appear successful with invalid plaintext.
 
----
-
-### 17. **Backup Rotation Not Atomic**
-
-**Location**: `backup.go`, `cleanupBackupsAfterRun`
-
-**Problem**: Old backups deleted after new one created. If process crashes between steps:
-
-- New backup created but old one not deleted: waste space
-- Old backup deleted but new one incomplete: data loss
-
-**Recommendation**: Use atomic file operations or transaction-like semantics.
+**Recommendation**: Migrate to AEAD (AES-GCM or XChaCha20-Poly1305) with authentication tag verification.
 
 ---
 
-### 18. **No Resource Limits**
+## High
 
-**Problem**: Large backups could:
+### 3. Silent error handling in operational paths
 
-- Consume all disk space
-- Exhaust available memory
-- Timeout on slow systems
+**Location**: `internal/backup/backup.go`, `internal/docker/helpers.go`
 
-**Recommendation**: Add configurable limits:
+- Multiple `os.Remove(...)` calls ignore errors.
+- Docker stack-state probe masks execution failure as "not running":
+  - `return false, nil // treat as not running if error`
 
-```yaml
-backup:
-  max_backup_size_gb: 100
-  timeout_minutes: 60
-  memory_limit_mb: 2048
-```
+**Impact**: Hidden operational failures, missed cleanup, confusing behavior.
+
+**Recommendation**: Capture and log cleanup failures; propagate or classify Docker command errors explicitly.
 
 ---
 
-### 19. **Default Permissions Too Open**
+### 4. Restore preflight and error handling gaps
 
-**Location**: `archive/helpers.go`, `CopyDir` function
+**Location**: `cmd/dcsbr/main.go`
 
-**Problem**: Uses `info.Mode()` which preserves original permissions. If source has world-readable sensitive data, backup will too.
+- No early archive existence/type pre-validation before prompting and restore flow.
+- Encrypted restore path reloads config with ignored error:
+  - `cfg, _ := backup.LoadConfig("config.yaml")`
 
-**Recommendation**: Apply restrictive mask: `0o600` for files, `0o700` for directories.
+**Impact**: Late failure discovery and reduced debuggability.
 
----
-
-### 20. **Inconsistent Prefix Handling**
-
-**Location**: `backup.go`, patterns
-
-**Problem**:
-
-```go
-const (
-    backupTarGzPattern = "%s_backup_%s_%s.tar.gz"  // Uses %s but...
-)
-// Later hardcodes in other places:
-if strings.HasPrefix(outName, cfg.Backup.Prefix+"_backup_") {
-    // Prefix handling inconsistent
-}
-```
-
-**Impact**: Confusing code, potential bugs if pattern format changes.
+**Recommendation**: Pre-validate archive file + extension/magic, and never ignore config-load errors.
 
 ---
 
-## ✅ Positive Aspects
+## Medium
 
-- ✅ Good package separation (archive, docker, backup packages)
-- ✅ AES-256 encryption uses Go standard library (secure)
-- ✅ Automatic git directory exclusion during backup
-- ✅ Intelligent stack stop/restart during backup
-- ✅ Multiple format support (tar.gz, zip)
-- ✅ Retention policy implemented
-- ✅ Support for both encrypted and non-encrypted backups
-- ✅ Config-driven approach
+### 5. CLI parsing inconsistency
 
----
+**Location**: `cmd/dcsbr/main.go`
 
-## 📋 Prioritized Improvement Plan
+`backup` manually parses positional args while `restore`/`decrypt` use `flag` sets.
 
-### Phase 1: Critical (Implement First)
+**Impact**: Inconsistent UX and weaker subcommand help ergonomics.
 
-1. **Add comprehensive error handling** - wrap all errors, decide fail-fast vs continue
-2. **Config validation on load** - all required fields, valid paths, password length
-3. **Backup integrity verification** - quick list + optional full extraction verify
-4. **Fix encryption cleanup** - atomic deletion after successful encryption
-5. **Structured logging** - JSON logs to file with all important events
-
-**Estimated effort**: 4-6 hours
+**Recommendation**: Normalize all subcommands around `flag.FlagSet` patterns.
 
 ---
 
-### Phase 2: High Priority (Implement Next)
+### 6. Fragile Compose mount path extraction
 
-1. Parse compose files properly as YAML, not text
-2. Implement audit logging to file
-3. Unify CLI to use flag package consistently
-4. Move password to environment variables
-5. Improve concurrent job error handling and goroutine panic recovery
-6. Add pre-restore archive validation
+**Location**: `internal/docker/helpers.go`
 
-**Estimated effort**: 6-8 hours
+Mount path detection parses compose YAML by line scanning and string splitting.
 
----
+**Impact**: Incorrect mount detection for more complex compose syntax.
 
-### Phase 3: Medium Priority (Polish)
-
-1. Expand test coverage to >80%
-2. Add dry-run mode with `--dry-run` flag
-3. Add progress reporting for large backups
-4. Add resource limits to config
-5. Improve help/documentation for all subcommands
-6. Better symlink handling strategy
-7. Make backup rotation atomic
-
-**Estimated effort**: 8-10 hours
+**Recommendation**: Parse compose content via structured YAML model or derive mount metadata via Docker APIs.
 
 ---
 
-## 🚀 Quick Wins (Can Do Immediately)
+## Low / Process
 
-| Task | Time | Impact |
-|------|------|--------|
-| Fix `os.Remove()` error handling | 5 min | Reduces file leaks |
-| Add config validation | 10 min | Catches errors early |
-| Add help for subcommands | 10 min | Better UX |
-| Mask password in verify output | 5 min | Security |
-| Add missing error checks | 15 min | Reliability |
+### 7. Test suite quality improved, but broader coverage is still advisable
 
-Total: ~45 minutes for significant improvements
+Core test failures were fixed and suite is green, but integration scenarios (full backup+restore with real Docker volumes and corrupted encrypted payloads) should be expanded.
 
 ---
 
-## Security Considerations
+## Corrections From Previous Draft
 
-1. **Encryption**: AES-256-CFB is secure but consider authenticated encryption (GCM) for future
-2. **Passwords**: Move from YAML to environment variables immediately
-3. **Permissions**: Ensure backup files created with restrictive perms (0o600)
-4. **Audit Trail**: Implement logging to detect unauthorized access attempts
-5. **Temp Files**: Ensure secure cleanup of temporary files (consider secure overwrite)
+1. "Mask password in verify output" is already implemented.
+2. "Encryption cleanup race condition" is better classified as cleanup/error-handling robustness, not a race.
+3. Two critical issues were missing before and are now included:
+   - extraction path traversal,
+   - unauthenticated encryption integrity risk.
 
 ---
 
-## Recommendations for Next Steps
+## Recommended Next Steps
 
-1. **Start with Phase 1** - these are safety-critical
-2. **Run tests before and after** each change
-3. **Add integration tests** for complete backup/restore cycles
-4. **Document configuration** thoroughly
-5. **Create troubleshooting guide** for common issues
-6. **Consider adding** dry-run mode early (useful for testing)
+1. Fix path traversal guards in all extract functions first.
+2. Replace CFB encryption with authenticated encryption (AEAD) and add migration strategy for old backups.
+3. Harden error handling (`os.Remove`, docker command failures, config load) with explicit logging and propagation.
+4. Add restore preflight validation.
+5. Add focused integration tests for archive safety and wrong-password behavior.
