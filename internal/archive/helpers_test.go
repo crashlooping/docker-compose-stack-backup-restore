@@ -5,9 +5,11 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -85,6 +87,112 @@ func TestZipFolderWithVolumesArchivesFiles(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("file2.txt not found in zip archive")
+	}
+}
+
+func TestTarGzFolderWithVolumesIgnoresUnixSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix sockets are not supported in this test on Windows")
+	}
+
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "file1.txt"), []byte("hello world"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	socketPath := filepath.Join(src, "test.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create unix socket: %v", err)
+	}
+	defer listener.Close()
+
+	dst := t.TempDir()
+	tarPath := filepath.Join(dst, "test.tar.gz")
+	if err := TarGzFolderWithVolumes(src, tarPath, nil); err != nil {
+		t.Fatalf("TarGzFolderWithVolumes should ignore unix sockets: %v", err)
+	}
+
+	f, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar.gz: %v", err)
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatalf("Failed to open gzip: %v", err)
+	}
+	defer gz.Close()
+
+	tarReader := tar.NewReader(gz)
+	foundFile := false
+	foundSocket := false
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("failed to read tar entry: %v", err)
+		}
+		if hdr.Name == "file1.txt" {
+			foundFile = true
+		}
+		if hdr.Name == "test.sock" {
+			foundSocket = true
+		}
+	}
+	if !foundFile {
+		t.Fatalf("file1.txt not found in tar archive")
+	}
+	if foundSocket {
+		t.Fatalf("test.sock should not be in the tar archive")
+	}
+}
+
+func TestZipFolderWithVolumesIgnoresUnixSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix sockets are not supported in this test on Windows")
+	}
+
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "file2.txt"), []byte("zip world"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	socketPath := filepath.Join(src, "test.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create unix socket: %v", err)
+	}
+	defer listener.Close()
+
+	dst := t.TempDir()
+	zipPath := filepath.Join(dst, "test.zip")
+	if err := ZipFolderWithVolumes(src, zipPath, nil); err != nil {
+		t.Fatalf("ZipFolderWithVolumes should ignore unix sockets: %v", err)
+	}
+
+	zipr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatalf("Failed to open zip reader: %v", err)
+	}
+	defer zipr.Close()
+
+	foundFile := false
+	foundSocket := false
+	for _, zf := range zipr.File {
+		if zf.Name == "file2.txt" {
+			foundFile = true
+		}
+		if zf.Name == "test.sock" {
+			foundSocket = true
+		}
+	}
+	if !foundFile {
+		t.Fatalf("file2.txt not found in zip archive")
+	}
+	if foundSocket {
+		t.Fatalf("test.sock should not be in the zip archive")
 	}
 }
 
@@ -200,6 +308,24 @@ func TestCheckDirReadable(t *testing.T) {
 	dir := t.TempDir()
 	if err := CheckDirReadable(dir); err != nil {
 		t.Errorf("CheckDirReadable failed: %v", err)
+	}
+}
+
+func TestCheckDirReadableIgnoresUnixSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix sockets are not supported in this test on Windows")
+	}
+
+	dir := t.TempDir()
+	socketPath := filepath.Join(dir, "test.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create unix socket: %v", err)
+	}
+	defer listener.Close()
+
+	if err := CheckDirReadable(dir); err != nil {
+		t.Fatalf("CheckDirReadable should ignore unix sockets: %v", err)
 	}
 }
 

@@ -69,6 +69,9 @@ func AddFileToTar(srcDir, path string, info os.FileInfo, err error, tarw *tar.Wr
 	if relPath == "." {
 		return nil
 	}
+	if info.Mode()&(os.ModeSocket|os.ModeNamedPipe|os.ModeDevice|os.ModeCharDevice) != 0 {
+		return nil
+	}
 	hdr, err := tar.FileInfoHeader(info, path)
 	if err != nil {
 		return err
@@ -153,6 +156,9 @@ func AddFileToZipWithGitIgnore(srcDir, path string, info os.FileInfo, err error,
 		if info.IsDir() {
 			return filepath.SkipDir
 		}
+		return nil
+	}
+	if info.Mode()&(os.ModeSocket|os.ModeNamedPipe|os.ModeDevice|os.ModeCharDevice) != 0 {
 		return nil
 	}
 	if info.IsDir() {
@@ -334,7 +340,7 @@ func CopyDir(src, dst string) error {
 	})
 }
 
-// CheckDirReadable walks a directory and returns an error if any file or directory cannot be read (stat or open).
+// CheckDirReadable walks a directory and returns an error if any regular file or directory cannot be read.
 func CheckDirReadable(dir string) error {
 	var unreadable []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -344,6 +350,9 @@ func CheckDirReadable(dir string) error {
 			if os.IsPermission(err) && info != nil && info.IsDir() {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+		if info.Mode()&(os.ModeSocket|os.ModeNamedPipe|os.ModeDevice|os.ModeCharDevice) != 0 {
 			return nil
 		}
 		if !info.IsDir() {

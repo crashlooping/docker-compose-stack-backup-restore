@@ -18,14 +18,6 @@ const (
 )
 
 func BackupComposeStack(srcPath, dstPath string) error {
-	// Check permissions before stopping stack or backing up
-	err := archive.CheckDirReadable(srcPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
-		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
-		return err
-	}
-
 	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[debug] FindComposeFile error: %v\n", err)
@@ -35,6 +27,13 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	stackWasRunning, err := docker.StopStackIfRunning(srcPath, composeFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[debug] StopStackIfRunning error: %v\n", err)
+		return err
+	}
+
+	err = archive.CheckDirReadable(srcPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
+		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
 		return err
 	}
 
@@ -84,14 +83,6 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 	if len(formats) == 0 {
 		return nil
 	}
-	// Check permissions before stopping stack or backing up
-	err := archive.CheckDirReadable(srcPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
-		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
-		return err
-	}
-
 	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
 		return err
@@ -99,6 +90,13 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 	docker.PrintComposeFileStatus(composeFile)
 	stackWasRunning, err := docker.StopStackIfRunning(srcPath, composeFile)
 	if err != nil {
+		return err
+	}
+
+	err = archive.CheckDirReadable(srcPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
+		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
 		return err
 	}
 
