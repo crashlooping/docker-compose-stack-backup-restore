@@ -2,4 +2,4 @@ module github.com/crashlooping/docker-compose-stack-backup-restore
 
 go 1.24.3
 
-require gopkg.in/yaml.v3 v3.0.1
+require github.com/goccy/go-yaml v1.19.2

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/backup"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 func main() {
