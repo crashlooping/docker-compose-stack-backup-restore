@@ -17,7 +17,7 @@ const (
 	backupZipPattern   = "%s_backup_%s_%s.zip"
 )
 
-func BackupComposeStack(srcPath, dstPath string) error {
+func BackupComposeStack(srcPath, dstPath string, prefix string) error {
 	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[debug] FindComposeFile error: %v\n", err)
@@ -44,8 +44,8 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	}
 
 	folderName := filepath.Base(srcPath)
-	timestamp := time.Now().Format("20060102_150405")
-	backupName := fmt.Sprintf(backupTarGzPattern, "dcsbr", folderName, timestamp)
+	timestamp := time.Now().Format("20060102_150405.000000000")
+	backupName := fmt.Sprintf(backupTarGzPattern, prefix, folderName, timestamp)
 	backupPath := filepath.Join(dstPath, backupName)
 	fmt.Printf("Creating tar.gz backup: %s\n", backupPath)
 	err = archive.TarGzFolderWithVolumes(srcPath, backupPath, volumeTarballs)
@@ -54,7 +54,7 @@ func BackupComposeStack(srcPath, dstPath string) error {
 	}
 	fmt.Println("tar.gz backup created.")
 
-	zipName := fmt.Sprintf(backupZipPattern, "dcsbr", folderName, timestamp)
+	zipName := fmt.Sprintf(backupZipPattern, prefix, folderName, timestamp)
 	zipPath := filepath.Join(dstPath, zipName)
 	fmt.Printf("Creating zip backup: %s\n", zipPath)
 	err = archive.ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
@@ -106,7 +106,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 	}
 
 	folderName := filepath.Base(srcPath)
-	timestamp := time.Now().Format("20060102_150405")
+	timestamp := time.Now().Format("20060102_150405.000000000")
 
 	jobs := makeArchiveJobs(formats, srcPath, dstPath, folderName, timestamp, volumeTarballs, prefix)
 	if err := runArchiveJobs(jobs); err != nil {
@@ -130,7 +130,9 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 			if err != nil {
 				return fmt.Errorf("failed to encrypt backup: %w", err)
 			}
-			os.Remove(backupPath)
+			if err := os.Remove(backupPath); err != nil {
+				fmt.Fprintf(os.Stderr, "[cleanup] Failed to remove unencrypted backup %s: %v\n", backupPath, err)
+			}
 		}
 	}
 
@@ -209,8 +211,11 @@ func runArchiveJobs(jobs []func() error) error {
 
 func cleanupTempFiles(files []string) {
 	for _, f := range files {
-		fmt.Printf("Removing temp file: %s\n", f)
-		os.Remove(f)
+		if err := os.Remove(f); err != nil {
+			fmt.Fprintf(os.Stderr, "[cleanup] Failed to remove temp file %s: %v\n", f, err)
+		} else {
+			fmt.Printf("Removing temp file: %s\n", f)
+		}
 	}
 }
 
@@ -228,6 +233,10 @@ func restartStackIfNeeded(stackWasRunning bool, srcPath, composeFile string) err
 }
 
 func cleanupOldBackups(dstPath, stackName, format string, maxBackups int, prefix string) error {
+	if maxBackups == 0 {
+		fmt.Printf("[retention] max_backups is 0 (unlimited), skipping pruning for %s (format: %s)\n", stackName, format)
+		return nil
+	}
 	pattern := fmt.Sprintf("%s_backup_%%s_*.%s", prefix, format)
 	files, err := filepath.Glob(filepath.Join(dstPath, fmt.Sprintf(pattern, stackName)))
 	if err != nil {
@@ -242,8 +251,11 @@ func cleanupOldBackups(dstPath, stackName, format string, maxBackups int, prefix
 		return files[i] > files[j] // reverse lexicographical, newest first
 	})
 	for _, f := range files[maxBackups:] {
-		fmt.Printf("[retention] Removing old backup: %s\n", f)
-		os.Remove(f)
+		if err := os.Remove(f); err != nil {
+			fmt.Fprintf(os.Stderr, "[retention] Failed to remove old backup %s: %v\n", f, err)
+		} else {
+			fmt.Printf("[retention] Removing old backup: %s\n", f)
+		}
 	}
 	return nil
 }

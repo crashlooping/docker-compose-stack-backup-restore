@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/goccy/go-yaml"
@@ -29,8 +30,33 @@ func LoadConfig(path string) (*Config, error) {
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, err
 	}
-	if cfg.Backup.MaxBackups <= 0 {
-		cfg.Backup.MaxBackups = 10
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 	return &cfg, nil
+}
+
+func (cfg *Config) validate() error {
+	if cfg.Backup.Prefix == "" {
+		return fmt.Errorf("'prefix' is required in config.yaml under 'backup'")
+	}
+	if len(cfg.Backup.Formats) == 0 {
+		return fmt.Errorf("at least one format is required in 'formats' (supported: tar.gz, zip)")
+	}
+	for _, f := range cfg.Backup.Formats {
+		if f != "tar.gz" && f != "zip" {
+			return fmt.Errorf("unsupported format '%s' in config (supported: tar.gz, zip)", f)
+		}
+	}
+	if cfg.Backup.Target == "" {
+		return fmt.Errorf("'target' is required in config.yaml under 'backup'")
+	}
+	if cfg.Backup.Password != "" && len(cfg.Backup.Password) < 16 {
+		return fmt.Errorf("'password' must be at least 16 characters long")
+	}
+	// maxBackups: 0 means unlimited (no pruning), negative is invalid
+	if cfg.Backup.MaxBackups < 0 {
+		cfg.Backup.MaxBackups = 0
+	}
+	return nil
 }

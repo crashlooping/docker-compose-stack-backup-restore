@@ -213,6 +213,16 @@ func ExportDockerVolumeTar(volume, mountPath string) (string, error) {
 }
 
 // ExtractTarGz extracts a .tar.gz archive to a target directory
+// safePath validates that the resolved path stays within the destination directory.
+func safePath(dest, entryPath string) (string, error) {
+	cleanPath := filepath.Clean(filepath.Join(dest, entryPath))
+	cleanDest := filepath.Clean(dest)
+	if !strings.HasPrefix(cleanPath, cleanDest+string(os.PathSeparator)) && cleanPath != cleanDest {
+		return "", fmt.Errorf("path traversal detected: %s escapes destination %s", entryPath, dest)
+	}
+	return cleanPath, nil
+}
+
 func ExtractTarGz(src, dest string) error {
 	f, err := os.Open(src)
 	if err != nil {
@@ -233,12 +243,19 @@ func ExtractTarGz(src, dest string) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(dest, hdr.Name)
+		path, err := safePath(dest, hdr.Name)
+		if err != nil {
+			return err
+		}
 		if hdr.FileInfo().IsDir() {
-			os.MkdirAll(path, hdr.FileInfo().Mode())
+			if err := os.MkdirAll(path, hdr.FileInfo().Mode()); err != nil {
+				return err
+			}
 			continue
 		}
-		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
 		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdr.FileInfo().Mode())
 		if err != nil {
 			return err
@@ -257,12 +274,19 @@ func ExtractZip(src, dest string) error {
 	}
 	defer r.Close()
 	for _, f := range r.File {
-		path := filepath.Join(dest, f.Name)
+		path, err := safePath(dest, f.Name)
+		if err != nil {
+			return err
+		}
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(path, f.Mode())
+			if err := os.MkdirAll(path, f.Mode()); err != nil {
+				return err
+			}
 			continue
 		}
-		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
 		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
 		if err != nil {
 			return err
@@ -295,12 +319,19 @@ func ExtractTar(src, dest string) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(dest, hdr.Name)
+		path, err := safePath(dest, hdr.Name)
+		if err != nil {
+			return err
+		}
 		if hdr.FileInfo().IsDir() {
-			os.MkdirAll(path, hdr.FileInfo().Mode())
+			if err := os.MkdirAll(path, hdr.FileInfo().Mode()); err != nil {
+				return err
+			}
 			continue
 		}
-		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
 		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdr.FileInfo().Mode())
 		if err != nil {
 			return err
@@ -374,70 +405,60 @@ func CheckDirReadable(dir string) error {
 	return nil
 }
 
-// EncryptFile encrypts srcPath to dstPath using password (AES-256-CFB). Overwrites dstPath if exists.
+// EncryptFile encrypts srcPath to dstPath using password (AES-256-GCM). Overwrites dstPath if exists.
 func EncryptFile(srcPath, dstPath, password string) error {
 	if len(password) < 16 {
 		return fmt.Errorf("encryption password must be at least 16 characters long")
 	}
 	key := sha256.Sum256([]byte(password))
-	in, err := os.Open(srcPath)
+	plaintext, err := os.ReadFile(srcPath)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.Create(dstPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	iv := make([]byte, aes.BlockSize)
-	if _, err := rand.Read(iv); err != nil {
-		return err
-	}
-	if _, err := out.Write(iv); err != nil {
+	nonce := make([]byte, 12)
+	if _, err := rand.Read(nonce); err != nil {
 		return err
 	}
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return err
 	}
-	stream := cipher.NewCFBEncrypter(block, iv)
-	writer := &cipher.StreamWriter{S: stream, W: out}
-	_, err = io.Copy(writer, in)
-	return err
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return err
+	}
+	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+	if err := os.WriteFile(dstPath, append(nonce, ciphertext...), 0o600); err != nil {
+		return err
+	}
+	return nil
 }
 
-// DecryptFile decrypts srcPath to dstPath using password (AES-256-CFB). Returns error if password is wrong.
+// DecryptFile decrypts srcPath to dstPath using password (AES-256-GCM). Returns error if password is wrong.
 func DecryptFile(srcPath, dstPath, password string) error {
 	key := sha256.Sum256([]byte(password))
-	in, err := os.Open(srcPath)
+	data, err := os.ReadFile(srcPath)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	iv := make([]byte, aes.BlockSize)
-	if _, err := io.ReadFull(in, iv); err != nil {
-		return err
+	if len(data) < 12 {
+		return fmt.Errorf("decryption failed: invalid ciphertext")
 	}
+	nonce, ciphertext := data[:12], data[12:]
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return err
 	}
-	stream := cipher.NewCFBDecrypter(block, iv)
-	out, err := os.Create(dstPath)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	reader := &cipher.StreamReader{S: stream, R: in}
-	_, err = io.Copy(out, reader)
-	return err
-}
-
-func init() {
-	// Ensure the temp directory exists
-	if err := os.MkdirAll(os.TempDir(), 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create temp directory: %v\n", err)
-		os.Exit(1)
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return fmt.Errorf("decryption failed: %w (wrong password or corrupted data)", err)
 	}
+	if err := os.WriteFile(dstPath, plaintext, 0o600); err != nil {
+		return err
+	}
+	return nil
 }

@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	DockerComposeCmd       = "docker compose"
 	DefaultVolumeMountPath = "/volume"
 )
 
@@ -91,6 +90,7 @@ func IsComposeStackRunning(dir, composeFile string) (bool, error) {
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[debug] docker compose ps failed (treating as not running): %v\n", err)
 		return false, nil // treat as not running if error
 	}
 	return strings.TrimSpace(string(out)) != "", nil

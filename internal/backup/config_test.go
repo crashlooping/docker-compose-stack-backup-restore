@@ -13,6 +13,7 @@ func TestLoadConfigValid(t *testing.T) {
   sources:
     - foo
   target: bar
+  prefix: dcsbr
 `), 0o644)
 	cfg, err := LoadConfig(file)
 	if err != nil {

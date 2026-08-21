@@ -38,13 +38,11 @@ See README.md for more details and configuration examples.`)
 	}
 
 	if os.Args[1] == "backup" {
+		backupCmd := flag.NewFlagSet("backup", flag.ExitOnError)
+		backupCmd.Parse(os.Args[2:])
 		cfg, err := backup.LoadConfig("config.yaml")
 		if err != nil {
 			fmt.Println("Error loading config.yaml:", err)
-			os.Exit(1)
-		}
-		if cfg.Backup.Prefix == "" {
-			fmt.Fprintln(os.Stderr, "Error: 'prefix' is required in config.yaml under 'backup'.")
 			os.Exit(1)
 		}
 		// Sudo-required logic: abort if sudo is required and not running as root on Linux
@@ -54,24 +52,14 @@ See README.md for more details and configuration examples.`)
 				os.Exit(1)
 			}
 		}
-		// Support: dcsbr backup <source>
-		if len(os.Args) > 2 {
-			sourceArg := os.Args[2]
+		// Support: dcsbr backup [<source>]
+		sources := cfg.Backup.Sources
+		if backupCmd.NArg() > 0 {
+			sourceArg := backupCmd.Arg(0)
 			found := false
 			for _, srcPath := range cfg.Backup.Sources {
 				if srcPath == sourceArg {
-					absSrc, _ := filepath.Abs(srcPath)
-					absDst, _ := filepath.Abs(cfg.Backup.Target)
-					fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
-					if cfg.Backup.Password != "" {
-						fmt.Println("[encryption] Password is set. Encrypted backups will be created.")
-					} else {
-						fmt.Println("[encryption] No password set. Backups will NOT be encrypted.")
-					}
-					err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
-					if err != nil {
-						fmt.Printf("Error backing up %s: %v\n", absSrc, err)
-					}
+					sources = []string{srcPath}
 					found = true
 					break
 				}
@@ -80,10 +68,8 @@ See README.md for more details and configuration examples.`)
 				fmt.Fprintf(os.Stderr, "Error: source '%s' not found in config.yaml sources list.\n", sourceArg)
 				os.Exit(1)
 			}
-			fmt.Println("Backup completed.")
-			return
 		}
-		for _, srcPath := range cfg.Backup.Sources {
+		for _, srcPath := range sources {
 			absSrc, _ := filepath.Abs(srcPath)
 			absDst, _ := filepath.Abs(cfg.Backup.Target)
 			fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
@@ -128,10 +114,9 @@ See README.md for more details and configuration examples.`)
 			os.Exit(0)
 		}
 		opts := backup.RestoreOptions{TargetDir: resolvedTarget}
-		// If encrypted, pass password from config if present
+		// If encrypted, pass password from config if present (reuse already loaded cfg)
 		if strings.HasSuffix(archivePath, ".enc") {
-			cfg, _ := backup.LoadConfig("config.yaml")
-			if cfg != nil && cfg.Backup.Password != "" {
+			if cfg.Backup.Password != "" {
 				opts.Password = cfg.Backup.Password
 			}
 		}
@@ -182,10 +167,6 @@ See README.md for more details and configuration examples.`)
 			fmt.Println("Error loading config.yaml:", err)
 			os.Exit(1)
 		}
-		if cfg.Backup.Prefix == "" {
-			fmt.Fprintln(os.Stderr, "Error: 'prefix' is required in config.yaml under 'backup'.")
-			os.Exit(1)
-		}
 		// Mask the password
 		maskedCfg := *cfg
 		if maskedCfg.Backup.Password != "" {
@@ -205,13 +186,17 @@ See README.md for more details and configuration examples.`)
 
 func extractStackNameFromArchive(archivePath string, prefix string) string {
 	base := filepath.Base(archivePath)
+	// Strip .enc suffix first to handle encrypted archives
+	name := base
+	if strings.HasSuffix(name, ".enc") {
+		name = name[:len(name)-4]
+	}
 	re := regexp.MustCompile(fmt.Sprintf(`^%s_backup_(.+?)_\d{8}_\d{6}\.(tar\.gz|zip)$`, regexp.QuoteMeta(prefix)))
-	matches := re.FindStringSubmatch(base)
+	matches := re.FindStringSubmatch(name)
 	if len(matches) > 1 {
 		return matches[1]
 	}
 	// fallback: remove extension and prefix_backup_ prefix
-	name := base
 	if strings.HasPrefix(name, prefix+"_backup_") {
 		name = name[len(prefix+"_backup_"):]
 	}

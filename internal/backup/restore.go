@@ -62,7 +62,10 @@ func RestoreFromBackup(archivePath string, opts RestoreOptions) error {
 	}
 
 	fmt.Printf("[restore] Copying stack folders to %s...\n", opts.TargetDir)
-	entries, _ := os.ReadDir(tmpDir)
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return fmt.Errorf("failed to read temp directory: %w", err)
+	}
 	for _, entry := range entries {
 		if entry.Name() == "volumes" {
 			continue
@@ -79,7 +82,10 @@ func RestoreFromBackup(archivePath string, opts RestoreOptions) error {
 	volDir := filepath.Join(tmpDir, "volumes")
 	if stat, err := os.Stat(volDir); err == nil && stat.IsDir() {
 		fmt.Printf("[restore] Restoring docker volumes from %s...\n", volDir)
-		volEntries, _ := os.ReadDir(volDir)
+		volEntries, err := os.ReadDir(volDir)
+		if err != nil {
+			return fmt.Errorf("failed to read volumes directory: %w", err)
+		}
 		for _, v := range volEntries {
 			volTar := filepath.Join(volDir, v.Name())
 			volName := strings.TrimSuffix(v.Name(), ".tar")

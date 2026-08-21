@@ -141,7 +141,7 @@ func TestBackupComposeStackPositive(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, testComposeYml), []byte("version: '3'\nservices:{}\nvolumes:{}\n"), 0o644)
 	dst := t.TempDir()
-	err := BackupComposeStack(dir, dst)
+	err := BackupComposeStack(dir, dst, "dcsbr")
 	if err != nil {
 		t.Errorf(errMsg, err)
 	}
