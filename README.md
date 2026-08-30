@@ -6,7 +6,7 @@ Easily back up, encrypt, and restore your Docker Compose stacks—including all 
 
 ## 🔒 How encryption works
 
-- If you set a `password` in your `config.yaml`, all backup files (`.tar.gz` and `.zip`) are encrypted automatically after creation using AES-256 encryption.
+- If you set a `password` in your `config.yaml`, all backup files (`.tar.gz`, `.zip`, `.tar.zst`) are encrypted automatically after creation using AES-256-GCM authenticated encryption.
 - Encrypted backups are saved with an additional `.enc` extension (e.g., `backup_stack_20250521_123456.tar.gz.enc`).
 - The original, unencrypted backup file is deleted after encryption for safety.
 - To restore or decrypt, the tool will use the password from your config, or prompt you to enter it if not set.
@@ -28,7 +28,7 @@ copy config.example.yaml config.yaml
 
 Edit `config.yaml` to specify:
 
-- 📁 The backup formats you want (`tar.gz`, `zip`, or both)
+- 📁 The backup formats you want (`tar.gz`, `zip`, `zst`, or multiple)
 - 🗂️ One or more source folders to back up
 - 🎯 The target folder where all backups will be stored
 - 🔑 (Optional) A password for encryption (must be at least 16 characters)
@@ -39,15 +39,15 @@ Edit `config.yaml` to specify:
 
 ```yaml
 backup:
-  formats: ["tar.gz", "zip"]
+  formats: ["zst"]              # tar.gz, zip, zst, or multiple
   sources:
     - ~/docker/authentik
     - ~/docker/uptime-kuma
   target: ~/backup
   password: your-very-strong-password-here # optional, must be >16 chars
-  max_backups: 10 # optional, default is 10
-  prefix: dcsbr # required, prefix for all backup files
-  sudo_required: false # optional, default is false. Set to true if you need sudo to access the source directories
+  max_backups: 10               # optional, default is 10
+  prefix: dcsbr                 # required, prefix for all backup files
+  sudo_required: false          # optional, default is false. Set to true if you need sudo to access the source directories
 ```
 
 ---
@@ -65,8 +65,6 @@ go run ./cmd/dcsbr
 ```
 
 The tool will read your `config.yaml` and back up all specified stacks to the target folder in the selected formats. 🗃️
-
----
 
 💡 **Tip:**  
 You can adjust the config at any time to add/remove stacks, change backup formats, or set retention.
@@ -101,6 +99,7 @@ You can adjust the config at any time to add/remove stacks, change backup format
   - The tool auto-detects the stack name from the archive and restores to `<restore-folder>/<stack-name>`.
   - Fails if the target folder already exists.
   - Prompts for confirmation before restoring.
+  - Supported formats: `.tar.gz`, `.zip`, `.tar.zst`, `.enc` (encrypted).
 
 - **Decrypt:**
 
@@ -133,8 +132,9 @@ You can adjust the config at any time to add/remove stacks, change backup format
 ### 4️⃣ Backup retention
 
 - The tool supports automatic backup retention via the `max_backups` config option (default: 10).
-- After each backup, the tool will prune the oldest backups in the target folder, keeping only the most recent `max_backups` for each stack.
-- Set `max_backups` in your config to control retention.
+- After each backup, the tool counts **all** backup files for a stack (across all formats — `tar.gz`, `zip`, `zst`, encrypted or not) and prunes the oldest ones, keeping only the most recent `max_backups`.
+- This means switching formats is safe: old-format backups will naturally cycle out as new backups are created.
+- Set `max_backups` to `0` for unlimited retention.
 
 ---
 
@@ -145,29 +145,41 @@ You can adjust the config at any time to add/remove stacks, change backup format
 - All Docker operations use the `alpine:3` image for volume export/import.
 - Empty folders are included in backups.
 - In CI, Docker-dependent tests are skipped if Docker is not available.
+- Config validation verifies that all source paths exist and the target directory is writable before any backup starts.
 
 ---
 
-### 6️⃣ Limitations & known issues
+### 6️⃣ Supported formats
+
+| Format | Extension | Compression | Speed | Notes |
+|---|---|---|---|---|
+| **tar.gz** | `.tar.gz` | Gzip (single-thread) | Medium | Good default, stdlib only |
+| **zip** | `.zip` | Deflate | Medium | Universal compatibility |
+| **zst** | `.tar.zst` | Zstandard (multithreaded) | Fastest | ~3-5× faster than gzip, better ratio |
+
+### 7️⃣ Limitations & known issues
 
 - Only supports Docker Compose stacks (not Swarm or Kubernetes).
 - Requires Docker to be installed and accessible in your PATH.
-- Password-based encryption uses AES-256; do not lose your password—backups cannot be decrypted without it.
-- Retention is per stack and per format; manual cleanup may be needed for custom scenarios.
+- Password-based encryption uses AES-256-GCM; do not lose your password—backups cannot be decrypted without it.
+- Retention is applied per stack (all formats combined), not per format.
 
 ---
 
 ## 🛠️ Features
 
-- Multi-format backup: `tar.gz` and/or `zip`
+- Multi-format backup: `tar.gz`, `zip`, and/or `zst` (Zstandard multithreaded)
 - Backs up both stack folders and all Docker volumes
 - Supports multiple source stacks
 - Cross-platform (Windows, Linux, macOS)
 - Simple YAML configuration
-- Fast, reliable, and easy to automate
-- Password-based AES-256 encryption
-- Backup retention with automatic pruning
+- Password-based AES-256-GCM authenticated encryption
+- Backup retention with automatic pruning across all formats
+- Config validation at startup (source paths, target writability)
+- Path traversal protection on extraction
+- Runtime timing output for backup and restore
 - Includes empty folders and checks for permission errors
+- Concurrent archive creation for multiple formats
 
 ---
 

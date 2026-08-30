@@ -11,7 +11,7 @@
 | **Language** | Go 1.24.3 |
 | **Module path** | `github.com/crashlooping/docker-compose-stack-backup-restore` |
 | **Binary name** | `dcsbr` |
-| **External deps** | `github.com/goccy/go-yaml` (YAML config parsing) |
+| **External deps** | `github.com/goccy/go-yaml` (YAML config parsing), `github.com/klauspost/compress` (Zstandard compression) |
 | **License** | MIT |
 | **Platforms** | Cross-platform (Windows, Linux, ARM64) — prebuilt binaries included |
 
@@ -53,7 +53,7 @@ internal/
   2. Stops the stack if running (graceful `docker compose down`).
   3. Checks filesystem readability (permission preflight).
   4. Exports all named Docker volumes to temporary tarballs.
-  5. Creates archive(s) in configured formats (`tar.gz`, `zip`, or both) — **concurrently** via goroutines.
+  5. Creates archive(s) in configured formats (`tar.gz`, `zip`, `zst`) — **concurrently** via goroutines (zst uses multithreaded Zstandard compression).
   6. Optionally encrypts each archive with AES-256-GCM (password ≥ 16 chars).
   7. Enforces backup retention (prunes oldest files beyond `max_backups`).
   8. Restarts the stack if it was originally running.
@@ -86,7 +86,7 @@ internal/
 
 ### 4.1 Multi-Format Archiving
 
-Both `tar.gz` and `zip` formats are supported. Archives include:
+Both `tar.gz`, `zip`, and `tar.zst` (Zstandard) formats are supported. Archives include:
 
 - All files from the source directory (excluding `.git/` directories and Unix sockets/pipes/devices).
 - Named Docker volumes exported as individual `.tar` files, stored under a `volumes/` prefix inside the archive.
@@ -113,9 +113,9 @@ Archive filenames use nanosecond-precision timestamps (`20060102_150405.00000000
 ### 4.4 Backup Retention (Pruning)
 
 - Configurable via `max_backups` (default: 10, `0` = unlimited).
-- After each backup run, files matching the pattern `<prefix>_backup_<stack>_*.<format>` are counted.
-- If the count exceeds `max_backups`, the oldest files are deleted (sorted reverse-lexicographically by path).
-- Retention is applied per stack, per format, and separately for encrypted vs. unencrypted files.
+- After each backup run, files matching the pattern `<prefix>_backup_<stack>_*` are counted across **all formats** (tar.gz, zip, tar.zst, encrypted or not).
+- If the count exceeds `max_backups`, the oldest files (sorted reverse-lexicographically by path) are deleted.
+- Retention is applied per stack, not per format. This means switching formats is safe: old-format backups naturally cycle out as new backups are created.
 
 ### 4.5 Path Traversal Protection
 
@@ -129,8 +129,9 @@ The `validate()` method enforces:
 | Field | Rule |
 |---|---|
 | `prefix` | Required |
-| `formats` | At least one, must be `tar.gz` or `zip` |
-| `target` | Required |
+| `formats` | At least one, must be `tar.gz`, `zip`, or `zst` |
+| `target` | Required; directory is created if missing, writability confirmed via temp file |
+| `sources` | Each path must exist on disk |
 | `password` | Optional; if set, must be ≥ 16 characters |
 | `max_backups` | Negative values are reset to 0 (unlimited) |
 

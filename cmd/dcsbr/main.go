@@ -23,7 +23,7 @@ Usage:
     Run backup for all stacks defined in config.yaml, or only the specified source if provided and present in the sources list.
 
   dcsbr.exe restore --target <restore-folder> <backup-archive>
-    Restore a backup archive (.tar.gz, .zip, or .enc) to the target folder.
+    Restore a backup archive (.tar.gz, .zip, .tar.zst, or .enc) to the target folder.
 
   dcsbr.exe decrypt --target <target-folder> <backup-archive.enc>
     Decrypt an encrypted backup file to the target folder (no extraction).
@@ -34,6 +34,7 @@ Usage:
 Options:
   --help, -h   Show this help message.
 
+Supported formats: tar.gz, zip, zst (Zstandard multithreaded compression)
 See README.md for more details and configuration examples.`)
 		return
 	}
@@ -194,7 +195,7 @@ func extractStackNameFromArchive(archivePath string, prefix string) string {
 	if strings.HasSuffix(name, ".enc") {
 		name = name[:len(name)-4]
 	}
-	re := regexp.MustCompile(fmt.Sprintf(`^%s_backup_(.+?)_\d{8}_\d{6}\.(tar\.gz|zip)$`, regexp.QuoteMeta(prefix)))
+	re := regexp.MustCompile(fmt.Sprintf(`^%s_backup_(.+?)_\d{8}_\d{6}\.(tar\.gz|zip|tar\.zst)$`, regexp.QuoteMeta(prefix)))
 	matches := re.FindStringSubmatch(name)
 	if len(matches) > 1 {
 		return matches[1]
