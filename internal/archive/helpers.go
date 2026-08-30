@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ func TarZstFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) e
 		return err
 	}
 	defer f.Close()
-	zstWriter, err := zstd.NewWriter(f)
+	zstWriter, err := zstd.NewWriter(f, zstd.WithEncoderConcurrency(runtime.GOMAXPROCS(0)))
 	if err != nil {
 		return err
 	}
