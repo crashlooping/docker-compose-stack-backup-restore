@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/crashlooping/docker-compose-stack-backup-restore/internal/backup"
 	"github.com/goccy/go-yaml"
@@ -38,6 +39,7 @@ See README.md for more details and configuration examples.`)
 	}
 
 	if os.Args[1] == "backup" {
+		startTime := time.Now()
 		backupCmd := flag.NewFlagSet("backup", flag.ExitOnError)
 		backupCmd.Parse(os.Args[2:])
 		cfg, err := backup.LoadConfig("config.yaml")
@@ -83,9 +85,10 @@ See README.md for more details and configuration examples.`)
 				fmt.Printf("Error backing up %s: %v\n", absSrc, err)
 			}
 		}
-		fmt.Println("All backups completed.")
+		fmt.Printf("All backups completed in %s.\n", time.Since(startTime).Round(time.Millisecond))
 		return
 	} else if len(os.Args) > 1 && os.Args[1] == "restore" {
+		restoreStart := time.Now()
 		restoreCmd := flag.NewFlagSet("restore", flag.ExitOnError)
 		target := restoreCmd.String("target", ".", "Target directory for stack restore")
 		restoreCmd.Parse(os.Args[2:])
@@ -124,7 +127,7 @@ See README.md for more details and configuration examples.`)
 			fmt.Fprintf(os.Stderr, "Restore failed: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Restore completed successfully.")
+		fmt.Printf("Restore completed successfully in %s.\n", time.Since(restoreStart).Round(time.Millisecond))
 		return
 	} else if len(os.Args) > 1 && os.Args[1] == "decrypt" {
 		decryptCmd := flag.NewFlagSet("decrypt", flag.ExitOnError)
