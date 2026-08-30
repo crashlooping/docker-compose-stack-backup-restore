@@ -139,7 +139,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 		}
 	}
 
-	cleanupBackupsAfterRun(dstPath, folderName, formats, password != "", maxBackups, prefix)
+	cleanupBackupsAfterRun(dstPath, folderName, password != "", maxBackups, prefix)
 
 	cleanupTempFiles(volumeTarballs)
 
@@ -149,16 +149,13 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 	return nil
 }
 
-// cleanupBackupsAfterRun enforces maxBackups for all formats, encrypted or not.
-func cleanupBackupsAfterRun(dstPath, stackName string, formats []string, encrypted bool, maxBackups int, prefix string) {
-	fmt.Print("[retention] Checking max_backups for all formats...\n")
-	for _, format := range formats {
-		if encrypted {
-			cleanupOldBackups(dstPath, stackName, format+".enc", maxBackups, prefix)
-		} else {
-			cleanupOldBackups(dstPath, stackName, format, maxBackups, prefix)
-		}
-	}
+// cleanupBackupsAfterRun enforces maxBackups across ALL backup files for a stack,
+// regardless of format (tar.gz, zip, zst, encrypted or not).
+func cleanupBackupsAfterRun(dstPath, stackName string, encrypted bool, maxBackups int, prefix string) {
+	fmt.Print("[retention] Checking max_backups across all formats...\n")
+	// Glob all backup files for this stack regardless of extension or encryption
+	patterns := []string{fmt.Sprintf("%s_backup_%s_*", prefix, stackName)}
+	cleanupOldBackups(dstPath, patterns, maxBackups, stackName, prefix)
 }
 
 func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp string, volumeTarballs []string, prefix string) []func() error {
@@ -246,19 +243,22 @@ func restartStackIfNeeded(stackWasRunning bool, srcPath, composeFile string) err
 	return nil
 }
 
-func cleanupOldBackups(dstPath, stackName, format string, maxBackups int, prefix string) error {
+func cleanupOldBackups(dstPath string, patterns []string, maxBackups int, stackName, prefix string) error {
 	if maxBackups == 0 {
-		fmt.Printf("[retention] max_backups is 0 (unlimited), skipping pruning for %s (format: %s)\n", stackName, format)
+		fmt.Printf("[retention] max_backups is 0 (unlimited), skipping pruning for %s\n", stackName)
 		return nil
 	}
-	pattern := fmt.Sprintf("%s_backup_%%s_*.%s", prefix, format)
-	files, err := filepath.Glob(filepath.Join(dstPath, fmt.Sprintf(pattern, stackName)))
-	if err != nil {
-		return err
+	var files []string
+	for _, pat := range patterns {
+		matches, err := filepath.Glob(filepath.Join(dstPath, pat))
+		if err != nil {
+			return err
+		}
+		files = append(files, matches...)
 	}
-	fmt.Printf("[retention] Checking max_backups for %s (format: %s): found %d files, max allowed is %d\n", stackName, format, len(files), maxBackups)
+	fmt.Printf("[retention] Checking max_backups for %s: found %d backup files, max allowed is %d\n", stackName, len(files), maxBackups)
 	if len(files) <= maxBackups {
-		fmt.Printf("[retention] No pruning needed for %s (format: %s)\n", stackName, format)
+		fmt.Printf("[retention] No pruning needed for %s\n", stackName)
 		return nil
 	}
 	sort.Slice(files, func(i, j int) bool {

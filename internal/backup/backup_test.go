@@ -178,7 +178,7 @@ func TestDecryptBackupFile(t *testing.T) {
 }
 
 func TestCleanupOldBackups(t *testing.T) {
-	err := cleanupOldBackups(t.TempDir(), "stack", "tar.gz", 2, "dcsbr")
+	err := cleanupOldBackups(t.TempDir(), []string{"dcsbr_backup_stack_*"}, 2, "stack", "dcsbr")
 	if err != nil && !os.IsNotExist(err) {
 		t.Errorf("unexpected error: %v", err)
 	}
