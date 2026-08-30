@@ -1,7 +1,7 @@
 # Example config for docker-compose-stack-backup-restore
 backup:
   prefix: dcsbr # required, prefix for all backup files
-  formats: ["tar.gz", "zip"] # options: tar.gz, zip, or both
+  formats: ["tar.gz", "zip"] # options: tar.gz, zip, zst, or multiple
   sources:
     - ~/docker/my-toolstack
     # - another/source/folder

@@ -15,6 +15,7 @@ import (
 const (
 	backupTarGzPattern = "%s_backup_%s_%s.tar.gz"
 	backupZipPattern   = "%s_backup_%s_%s.zip"
+	backupZstPattern   = "%s_backup_%s_%s.tar.zst"
 )
 
 func BackupComposeStack(srcPath, dstPath string, prefix string) error {
@@ -122,6 +123,8 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 				backupName = fmt.Sprintf(backupTarGzPattern, prefix, folderName, timestamp)
 			case "zip":
 				backupName = fmt.Sprintf(backupZipPattern, prefix, folderName, timestamp)
+			case "zst":
+				backupName = fmt.Sprintf(backupZstPattern, prefix, folderName, timestamp)
 			}
 			backupPath := filepath.Join(dstPath, backupName)
 			encPath := backupPath + ".enc"
@@ -181,6 +184,17 @@ func makeArchiveJobs(formats []string, srcPath, dstPath, folderName, timestamp s
 				err := archive.ZipFolderWithVolumes(srcPath, zipPath, volumeTarballs)
 				if err == nil {
 					fmt.Println("zip backup created.")
+				}
+				return err
+			})
+		case "zst":
+			zstName := fmt.Sprintf(backupZstPattern, prefix, folderName, timestamp)
+			zstPath := filepath.Join(dstPath, zstName)
+			jobs = append(jobs, func() error {
+				fmt.Printf("Creating tar.zst backup: %s\n", zstPath)
+				err := archive.TarZstFolderWithVolumes(srcPath, zstPath, volumeTarballs)
+				if err == nil {
+					fmt.Println("tar.zst backup created.")
 				}
 				return err
 			})

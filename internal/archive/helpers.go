@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 func TarGzFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) error {
@@ -26,6 +28,34 @@ func TarGzFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) er
 	gz := gzip.NewWriter(f)
 	defer gz.Close()
 	tarw := tar.NewWriter(gz)
+	defer tarw.Close()
+	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		return AddFileToTarWithGitIgnore(srcDir, path, info, err, tarw)
+	})
+	if err != nil {
+		return err
+	}
+	for _, v := range volumeTarballs {
+		if err := AddVolumeTarToTarGz(v, tarw); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TarZstFolderWithVolumes creates a .tar.zst archive using Zstandard compression.
+func TarZstFolderWithVolumes(srcDir, destFile string, volumeTarballs []string) error {
+	f, err := os.Create(destFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zstWriter, err := zstd.NewWriter(f)
+	if err != nil {
+		return err
+	}
+	defer zstWriter.Close()
+	tarw := tar.NewWriter(zstWriter)
 	defer tarw.Close()
 	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		return AddFileToTarWithGitIgnore(srcDir, path, info, err, tarw)
@@ -235,6 +265,50 @@ func ExtractTarGz(src, dest string) error {
 	}
 	defer gz.Close()
 	tarReader := tar.NewReader(gz)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		path, err := safePath(dest, hdr.Name)
+		if err != nil {
+			return err
+		}
+		if hdr.FileInfo().IsDir() {
+			if err := os.MkdirAll(path, hdr.FileInfo().Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, hdr.FileInfo().Mode())
+		if err != nil {
+			return err
+		}
+		io.Copy(out, tarReader)
+		out.Close()
+	}
+	return nil
+}
+
+// ExtractTarZst extracts a .tar.zst archive to a target directory
+func ExtractTarZst(src, dest string) error {
+	f, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zstReader, err := zstd.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer zstReader.Close()
+	tarReader := tar.NewReader(zstReader)
 	for {
 		hdr, err := tarReader.Next()
 		if err == io.EOF {

@@ -44,8 +44,8 @@ func (cfg *Config) validate() error {
 		return fmt.Errorf("at least one format is required in 'formats' (supported: tar.gz, zip)")
 	}
 	for _, f := range cfg.Backup.Formats {
-		if f != "tar.gz" && f != "zip" {
-			return fmt.Errorf("unsupported format '%s' in config (supported: tar.gz, zip)", f)
+		if f != "tar.gz" && f != "zip" && f != "zst" {
+			return fmt.Errorf("unsupported format '%s' in config (supported: tar.gz, zip, zst)", f)
 		}
 	}
 	if cfg.Backup.Target == "" {

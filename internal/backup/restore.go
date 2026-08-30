@@ -54,6 +54,8 @@ func RestoreFromBackup(archivePath string, opts RestoreOptions) error {
 		err = archive.ExtractTarGz(archiveToExtract, tmpDir)
 	} else if strings.HasSuffix(archiveToExtract, ".zip") {
 		err = archive.ExtractZip(archiveToExtract, tmpDir)
+	} else if strings.HasSuffix(archiveToExtract, ".tar.zst") {
+		err = archive.ExtractTarZst(archiveToExtract, tmpDir)
 	} else {
 		return fmt.Errorf("unsupported archive format: %s", archiveToExtract)
 	}

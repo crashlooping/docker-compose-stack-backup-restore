@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
@@ -355,5 +357,56 @@ func TestExtractTarGzZipTar(t *testing.T) {
 	}
 	if err := ExtractTar("nofile.tar", tmpDir); err == nil {
 		t.Error("expected error for ExtractTar with non-existent file")
+	}
+	if err := ExtractTarZst("nofile.tar.zst", tmpDir); err == nil {
+		t.Error("expected error for ExtractTarZst with non-existent file")
+	}
+}
+
+func TestTarZstFolderWithVolumesArchivesFiles(t *testing.T) {
+	src := t.TempDir()
+	os.WriteFile(filepath.Join(src, "file1.txt"), []byte("hello world"), 0o644)
+	os.Mkdir(filepath.Join(src, ".git"), 0o755)
+	os.WriteFile(filepath.Join(src, ".git", "should_ignore.txt"), []byte("ignore me"), 0o644)
+	dst := t.TempDir()
+	zstPath := filepath.Join(dst, "test.tar.zst")
+	if err := TarZstFolderWithVolumes(src, zstPath, nil); err != nil {
+		t.Fatalf("TarZstFolderWithVolumes failed: %v", err)
+	}
+	f, err := os.Open(zstPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar.zst: %v", err)
+	}
+	defer f.Close()
+	zstReader, err := zstd.NewReader(f)
+	if err != nil {
+		t.Fatalf("Failed to open zstd reader: %v", err)
+	}
+	defer zstReader.Close()
+	buf := make([]byte, 512)
+	_, err = zstReader.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatalf("Failed to read tar.zst: %v", err)
+	}
+}
+
+func TestTarZstFolderAndExtractRoundTrip(t *testing.T) {
+	src := t.TempDir()
+	os.WriteFile(filepath.Join(src, "hello.txt"), []byte("zstd roundtrip"), 0o644)
+	dst := t.TempDir()
+	zstPath := filepath.Join(dst, "roundtrip.tar.zst")
+	if err := TarZstFolderWithVolumes(src, zstPath, nil); err != nil {
+		t.Fatalf("TarZstFolderWithVolumes failed: %v", err)
+	}
+	outDir := t.TempDir()
+	if err := ExtractTarZst(zstPath, outDir); err != nil {
+		t.Fatalf("ExtractTarZst failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(outDir, "hello.txt"))
+	if err != nil {
+		t.Fatalf("Failed to read extracted file: %v", err)
+	}
+	if string(data) != "zstd roundtrip" {
+		t.Fatalf("Content mismatch: got %q, want %q", data, "zstd roundtrip")
 	}
 }
