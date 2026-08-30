@@ -51,6 +51,17 @@ func (cfg *Config) validate() error {
 	if cfg.Backup.Target == "" {
 		return fmt.Errorf("'target' is required in config.yaml under 'backup'")
 	}
+	// Verify target directory exists and is writable
+	targetDir := cfg.Backup.Target
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("target directory '%s' cannot be created: %w", targetDir, err)
+	}
+	tmpFile, err := os.CreateTemp(targetDir, ".dcsbr-write-test-*")
+	if err != nil {
+		return fmt.Errorf("target directory '%s' is not writable: %w", targetDir, err)
+	}
+	tmpFile.Close()
+	os.Remove(tmpFile.Name())
 	if cfg.Backup.Password != "" && len(cfg.Backup.Password) < 16 {
 		return fmt.Errorf("'password' must be at least 16 characters long")
 	}

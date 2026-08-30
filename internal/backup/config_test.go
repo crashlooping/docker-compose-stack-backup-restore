@@ -9,17 +9,21 @@ import (
 func TestLoadConfigValid(t *testing.T) {
 	tmp := t.TempDir()
 	srcDir := tmp + "/mysource"
+	tgtDir := tmp + "/backup"
 	if err := os.MkdirAll(srcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(tgtDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	file := tmp + "/config.yaml"
-	os.WriteFile(file, []byte("backup:\n  formats: [\"tar.gz\", \"zip\"]\n  sources:\n    - "+srcDir+"\n  target: "+tmp+"/backup\n  prefix: dcsbr\n"), 0o644)
+	os.WriteFile(file, []byte("backup:\n  formats: [\"tar.gz\", \"zip\"]\n  sources:\n    - "+srcDir+"\n  target: "+tgtDir+"\n  prefix: dcsbr\n"), 0o644)
 	cfg, err := LoadConfig(file)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if cfg.Backup.Target != tmp+"/backup" {
-		t.Errorf("Expected target '%s', got %v", tmp+"/backup", cfg.Backup.Target)
+	if cfg.Backup.Target != tgtDir {
+		t.Errorf("Expected target '%s', got %v", tgtDir, cfg.Backup.Target)
 	}
 }
 
