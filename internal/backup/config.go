@@ -58,5 +58,14 @@ func (cfg *Config) validate() error {
 	if cfg.Backup.MaxBackups < 0 {
 		cfg.Backup.MaxBackups = 0
 	}
+	// Verify all source paths exist before starting any backup
+	for i, src := range cfg.Backup.Sources {
+		if _, err := os.Stat(src); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("source path '%s' (index %d) does not exist", src, i)
+			}
+			return fmt.Errorf("source path '%s' (index %d) is not accessible: %w", src, i, err)
+		}
+	}
 	return nil
 }
