@@ -19,8 +19,9 @@ func main() {
 		fmt.Println(`docker-compose-stack-backup-restore
 
 Usage:
-  dcsbr.exe backup [<source>]
+  dcsbr.exe backup [<source>] [--yes]
     Run backup for all stacks defined in config.yaml, or only the specified source if provided and present in the sources list.
+    --yes, -y   Skip the confirmation prompt (for cron/automated backups).
 
   dcsbr.exe restore --target <restore-folder> <backup-archive>
     Restore a backup archive (.tar.gz, .zip, .tar.zst, or .enc) to the target folder.
@@ -42,6 +43,9 @@ See README.md for more details and configuration examples.`)
 	if os.Args[1] == "backup" {
 		startTime := time.Now()
 		backupCmd := flag.NewFlagSet("backup", flag.ExitOnError)
+		var yesFlag bool
+		backupCmd.BoolVar(&yesFlag, "yes", false, "Skip confirmation prompt (for cron/automated backups)")
+		backupCmd.BoolVar(&yesFlag, "y", false, "Skip confirmation prompt (for cron/automated backups)")
 		backupCmd.Parse(os.Args[2:])
 		cfg, err := backup.LoadConfig("config.yaml")
 		if err != nil {
@@ -91,6 +95,16 @@ See README.md for more details and configuration examples.`)
 		} else {
 			// Full backup: honor sources_first_last ordering (monitoring tools
 			// stop first and restart last).
+			printBackupPlan(cfg)
+			if !yesFlag {
+				fmt.Print("\nAre you sure you want to proceed? (y/N): ")
+				var confirm string
+				fmt.Scanln(&confirm)
+				if confirm != "y" && confirm != "Y" {
+					fmt.Println("Backup cancelled.")
+					os.Exit(0)
+				}
+			}
 			if err := backup.BackupAllSources(cfg); err != nil {
 				fmt.Printf("Error during backup: %v\n", err)
 			}
@@ -195,6 +209,26 @@ See README.md for more details and configuration examples.`)
 		fmt.Println("Config verification successful.")
 		return
 	}
+}
+
+// printBackupPlan shows the order in which sources will be backed up before
+// asking for confirmation. sources_first_last are stopped and backed up first,
+// then every regular source, and finally the first/last sources are restarted.
+func printBackupPlan(cfg *backup.Config) {
+	fmt.Println("\nBackup plan (in order):")
+	step := 1
+	for _, srcPath := range cfg.Backup.SourcesFirstLast {
+		fmt.Printf("  %d. %s (stop + backup first, restart last)\n", step, srcPath)
+		step++
+	}
+	for _, srcPath := range cfg.Backup.Sources {
+		fmt.Printf("  %d. %s\n", step, srcPath)
+		step++
+	}
+	if len(cfg.Backup.SourcesFirstLast) > 0 {
+		fmt.Println("  Then restart the sources_first_last stacks.")
+	}
+	fmt.Printf("Target: %s | Formats: %v\n", cfg.Backup.Target, cfg.Backup.Formats)
 }
 
 func extractStackNameFromArchive(archivePath string, prefix string) string {

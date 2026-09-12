@@ -87,6 +87,12 @@ You can adjust the config at any time to add/remove stacks, change backup format
 
   All backup files will be prefixed with the configured value (e.g., `dcsbr_backup_...`).
 
+  Before starting, the tool prints the planned backup order and asks for confirmation. Use `--yes` (or `-y`) to skip the prompt — useful for cron/automated backups:
+
+  ```sh
+  dcsbr.exe backup --yes
+  ```
+
 - **Backup a single source:**
 
   ```sh

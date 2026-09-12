@@ -82,6 +82,31 @@ func TestLoadConfigSourcesFirstLast(t *testing.T) {
 	}
 }
 
+func TestLoadConfigSourcesFirstLastMultiple(t *testing.T) {
+	tmp := t.TempDir()
+	first := tmp + "/first"
+	second := tmp + "/second"
+	regular := tmp + "/regular"
+	tgtDir := tmp + "/backup"
+	for _, d := range []string{first, second, regular, tgtDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file := tmp + "/config.yaml"
+	os.WriteFile(file, []byte("backup:\n  formats: [\"tar.gz\"]\n  sources:\n    - "+regular+"\n  sources_first_last:\n    - "+first+"\n    - "+second+"\n  target: "+tgtDir+"\n  prefix: dcsbr\n"), 0o644)
+	cfg, err := LoadConfig(file)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if len(cfg.Backup.SourcesFirstLast) != 2 {
+		t.Errorf("Expected 2 sources_first_last entries, got %d", len(cfg.Backup.SourcesFirstLast))
+	}
+	if cfg.Backup.SourcesFirstLast[0] != first || cfg.Backup.SourcesFirstLast[1] != second {
+		t.Errorf("Expected sources_first_last to be [%s, %s], got %v", first, second, cfg.Backup.SourcesFirstLast)
+	}
+}
+
 func TestLoadConfigSourcesFirstLastDuplicate(t *testing.T) {
 	tmp := t.TempDir()
 	src := tmp + "/dup"
