@@ -56,3 +56,49 @@ func TestLoadConfigSourceNotFound(t *testing.T) {
 		t.Fatalf("Expected 'does not exist' error, got: %v", err)
 	}
 }
+
+func TestLoadConfigSourcesFirstLast(t *testing.T) {
+	tmp := t.TempDir()
+	first := tmp + "/first"
+	regular := tmp + "/regular"
+	tgtDir := tmp + "/backup"
+	if err := os.MkdirAll(first, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(regular, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tgtDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := tmp + "/config.yaml"
+	os.WriteFile(file, []byte("backup:\n  formats: [\"tar.gz\"]\n  sources:\n    - "+regular+"\n  sources_first_last:\n    - "+first+"\n  target: "+tgtDir+"\n  prefix: dcsbr\n"), 0o644)
+	cfg, err := LoadConfig(file)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if len(cfg.Backup.SourcesFirstLast) != 1 || cfg.Backup.SourcesFirstLast[0] != first {
+		t.Errorf("Expected sources_first_last to contain %s, got %v", first, cfg.Backup.SourcesFirstLast)
+	}
+}
+
+func TestLoadConfigSourcesFirstLastDuplicate(t *testing.T) {
+	tmp := t.TempDir()
+	src := tmp + "/dup"
+	tgtDir := tmp + "/backup"
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tgtDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := tmp + "/config.yaml"
+	os.WriteFile(file, []byte("backup:\n  formats: [\"tar.gz\"]\n  sources:\n    - "+src+"\n  sources_first_last:\n    - "+src+"\n  target: "+tgtDir+"\n  prefix: dcsbr\n"), 0o644)
+	_, err := LoadConfig(file)
+	if err == nil {
+		t.Fatal("Expected error for duplicate source in sources and sources_first_last")
+	}
+	if !strings.Contains(err.Error(), "both 'sources' and 'sources_first_last'") {
+		t.Fatalf("Expected duplicate-source error, got: %v", err)
+	}
+}

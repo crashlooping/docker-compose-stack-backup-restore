@@ -163,6 +163,18 @@ func TestBackupComposeStackWithFormatsEmptyFormats(t *testing.T) {
 	}
 }
 
+func TestBackupComposeStackWithFormatsDeferredEmptyFormats(t *testing.T) {
+	dir := t.TempDir()
+	dst := t.TempDir()
+	result, err := BackupComposeStackWithFormatsDeferred(dir, dst, []string{}, "", 10, "dcsbr")
+	if err != nil {
+		t.Errorf(errMsg, err)
+	}
+	if result == nil {
+		t.Error("Expected a BackupResult, got nil")
+	}
+}
+
 func TestRestartStackIfNeededTrue(t *testing.T) {
 	err := restartStackIfNeeded(true, nonexistentDir, testComposeYml)
 	if err == nil {

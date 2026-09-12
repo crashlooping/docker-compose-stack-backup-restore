@@ -9,13 +9,14 @@ import (
 
 type Config struct {
 	Backup struct {
-		Formats      []string `yaml:"formats"`
-		Sources      []string `yaml:"sources"`
-		Target       string   `yaml:"target"`
-		Password     string   `yaml:"password"`
-		MaxBackups   int      `yaml:"max_backups"`
-		Prefix       string   `yaml:"prefix"`
-		SudoRequired bool     `yaml:"sudo_required"`
+		Formats          []string `yaml:"formats"`
+		Sources          []string `yaml:"sources"`
+		SourcesFirstLast []string `yaml:"sources_first_last"`
+		Target           string   `yaml:"target"`
+		Password         string   `yaml:"password"`
+		MaxBackups       int      `yaml:"max_backups"`
+		Prefix           string   `yaml:"prefix"`
+		SudoRequired     bool     `yaml:"sudo_required"`
 	} `yaml:"backup"`
 }
 
@@ -76,6 +77,20 @@ func (cfg *Config) validate() error {
 				return fmt.Errorf("source path '%s' (index %d) does not exist", src, i)
 			}
 			return fmt.Errorf("source path '%s' (index %d) is not accessible: %w", src, i, err)
+		}
+	}
+	// Verify all sources_first_last paths exist and are not duplicated in sources
+	for i, src := range cfg.Backup.SourcesFirstLast {
+		if _, err := os.Stat(src); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("sources_first_last path '%s' (index %d) does not exist", src, i)
+			}
+			return fmt.Errorf("sources_first_last path '%s' (index %d) is not accessible: %w", src, i, err)
+		}
+		for _, s := range cfg.Backup.Sources {
+			if s == src {
+				return fmt.Errorf("source '%s' is listed in both 'sources' and 'sources_first_last'; list it only in 'sources_first_last'", src)
+			}
 		}
 	}
 	return nil

@@ -43,6 +43,12 @@ backup:
   sources:
     - ~/docker/authentik
     - ~/docker/uptime-kuma
+  # Optional: sources stopped & backed up FIRST, restarted LAST (after every
+  # regular source). Ideal for monitoring tools (e.g. uptime-kuma) so they
+  # don't report other stacks going down during the backup run. Do NOT list a
+  # path in both `sources` and here.
+  sources_first_last:
+    - ~/docker/uptime-kuma
   target: ~/backup
   password: your-very-strong-password-here # optional, must be >16 chars
   max_backups: 10               # optional, default is 10
@@ -88,6 +94,8 @@ You can adjust the config at any time to add/remove stacks, change backup format
   ```
 
   Only the specified source from the `sources` list in your config.yaml will be backed up. If the source is not found, an error will be printed. If no source is specified, all sources will be backed up.
+
+  > **Ordering:** When backing up all sources, any path in `sources_first_last` is stopped and backed up **first**, then every regular source is backed up (restarting each as usual), and finally the `sources_first_last` stacks are restarted **last**. This keeps monitoring tools from alerting on the other stacks going down during the run.
 
 - **Restore:**
 

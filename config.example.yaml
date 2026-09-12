@@ -5,6 +5,12 @@ backup:
   sources:
     - ~/docker/my-toolstack
     # - another/source/folder
+  # Optional: sources that are stopped and backed up FIRST, then restarted
+  # LAST, after every regular source is done. Use this for monitoring tools
+  # (e.g. uptime-kuma) so they don't report the other stacks going down
+  # during the backup run. Do NOT list a path in both `sources` and here.
+  sources_first_last:
+    - ~/docker/uptime-kuma
   target: ~/backup
   password: rahreeJaGh5ootu8Ahpohng1shah5Ees # optional, for encryption
   max_backups: 10 # optional, default is 10. Maximum number of backup files to keep per stack/format

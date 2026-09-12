@@ -72,18 +72,27 @@ See README.md for more details and configuration examples.`)
 				os.Exit(1)
 			}
 		}
-		for _, srcPath := range sources {
-			absSrc, _ := filepath.Abs(srcPath)
-			absDst, _ := filepath.Abs(cfg.Backup.Target)
-			fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
-			if cfg.Backup.Password != "" {
-				fmt.Println("[encryption] Password is set. Encrypted backups will be created.")
-			} else {
-				fmt.Println("[encryption] No password set. Backups will NOT be encrypted.")
+		if backupCmd.NArg() > 0 {
+			// Single-source backup: back up just that source, restarting as usual.
+			for _, srcPath := range sources {
+				absSrc, _ := filepath.Abs(srcPath)
+				absDst, _ := filepath.Abs(cfg.Backup.Target)
+				fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
+				if cfg.Backup.Password != "" {
+					fmt.Println("[encryption] Password is set. Encrypted backups will be created.")
+				} else {
+					fmt.Println("[encryption] No password set. Backups will NOT be encrypted.")
+				}
+				err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
+				if err != nil {
+					fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+				}
 			}
-			err := backup.BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
-			if err != nil {
-				fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+		} else {
+			// Full backup: honor sources_first_last ordering (monitoring tools
+			// stop first and restart last).
+			if err := backup.BackupAllSources(cfg); err != nil {
+				fmt.Printf("Error during backup: %v\n", err)
 			}
 		}
 		fmt.Printf("All backups completed in %s.\n", time.Since(startTime).Round(time.Millisecond))

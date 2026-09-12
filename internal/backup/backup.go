@@ -80,30 +80,52 @@ func BackupComposeStack(srcPath, dstPath string, prefix string) error {
 	return nil
 }
 
+// BackupResult reports whether a stack was running before backup and which
+// compose file was used, so the caller can decide whether/how to restart it.
+type BackupResult struct {
+	WasRunning  bool
+	ComposeFile string
+}
+
 func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, password string, maxBackups int, prefix string) error {
+	_, err := BackupComposeStackWithFormatsCore(srcPath, dstPath, formats, password, maxBackups, prefix, true)
+	return err
+}
+
+// BackupComposeStackWithFormatsDeferred backs up a stack but does NOT restart
+// it afterwards. The caller is responsible for restarting it later (e.g. after
+// all other stacks have been backed up). Returns the pre-backup state.
+func BackupComposeStackWithFormatsDeferred(srcPath, dstPath string, formats []string, password string, maxBackups int, prefix string) (*BackupResult, error) {
+	return BackupComposeStackWithFormatsCore(srcPath, dstPath, formats, password, maxBackups, prefix, false)
+}
+
+func BackupComposeStackWithFormatsCore(srcPath, dstPath string, formats []string, password string, maxBackups int, prefix string, restart bool) (*BackupResult, error) {
+	result := &BackupResult{}
 	if len(formats) == 0 {
-		return nil
+		return result, nil
 	}
 	composeFile, err := docker.FindComposeFile(srcPath)
 	if err != nil {
-		return err
+		return result, err
 	}
 	docker.PrintComposeFileStatus(composeFile)
 	stackWasRunning, err := docker.StopStackIfRunning(srcPath, composeFile)
 	if err != nil {
-		return err
+		return result, err
 	}
+	result.WasRunning = stackWasRunning
+	result.ComposeFile = composeFile
 
 	err = archive.CheckDirReadable(srcPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[permission error] Some files or directories in '%s' are not readable.\n%s\n", srcPath, err)
 		fmt.Fprintln(os.Stderr, "You may need to run this tool with elevated permissions (e.g., 'sudo'). Backup aborted.")
-		return err
+		return result, err
 	}
 
 	volumeTarballs, err := exportAllComposeVolumes(srcPath, composeFile)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	folderName := filepath.Base(srcPath)
@@ -111,7 +133,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 
 	jobs := makeArchiveJobs(formats, srcPath, dstPath, folderName, timestamp, volumeTarballs, prefix)
 	if err := runArchiveJobs(jobs); err != nil {
-		return err
+		return result, err
 	}
 
 	// Encrypt each backup file if password is set
@@ -131,7 +153,7 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 			fmt.Printf("Encrypting %s -> %s\n", backupPath, encPath)
 			err := archive.EncryptFile(backupPath, encPath, password)
 			if err != nil {
-				return fmt.Errorf("failed to encrypt backup: %w", err)
+				return result, fmt.Errorf("failed to encrypt backup: %w", err)
 			}
 			if err := os.Remove(backupPath); err != nil {
 				fmt.Fprintf(os.Stderr, "[cleanup] Failed to remove unencrypted backup %s: %v\n", backupPath, err)
@@ -143,8 +165,51 @@ func BackupComposeStackWithFormats(srcPath, dstPath string, formats []string, pa
 
 	cleanupTempFiles(volumeTarballs)
 
-	if err := restartStackIfNeeded(stackWasRunning, srcPath, composeFile); err != nil {
-		return err
+	if restart {
+		if err := restartStackIfNeeded(stackWasRunning, srcPath, composeFile); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+// BackupAllSources backs up every source in the config. Sources listed in
+// sources_first_last are stopped and backed up FIRST, then every regular
+// source is backed up (restarting each as usual), and finally the
+// first/last sources are restarted LAST. This keeps monitoring tools from
+// reporting the other stacks going down during the backup run.
+func BackupAllSources(cfg *Config) error {
+	var deferred []*BackupResult
+	// 1. Stop + back up first/last sources, but leave them stopped.
+	for _, srcPath := range cfg.Backup.SourcesFirstLast {
+		absSrc, _ := filepath.Abs(srcPath)
+		absDst, _ := filepath.Abs(cfg.Backup.Target)
+		fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
+		result, err := BackupComposeStackWithFormatsDeferred(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
+		if err != nil {
+			fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+		}
+		deferred = append(deferred, result)
+	}
+	// 2. Back up every regular source, restarting each as usual.
+	for _, srcPath := range cfg.Backup.Sources {
+		absSrc, _ := filepath.Abs(srcPath)
+		absDst, _ := filepath.Abs(cfg.Backup.Target)
+		fmt.Printf("Starting backup of '%s' to '%s' (formats: %v)...\n", absSrc, absDst, cfg.Backup.Formats)
+		err := BackupComposeStackWithFormats(absSrc, absDst, cfg.Backup.Formats, cfg.Backup.Password, cfg.Backup.MaxBackups, cfg.Backup.Prefix)
+		if err != nil {
+			fmt.Printf("Error backing up %s: %v\n", absSrc, err)
+		}
+	}
+	// 3. Restart the first/last sources that were running before backup.
+	for i := len(deferred) - 1; i >= 0; i-- {
+		result := deferred[i]
+		if result.WasRunning {
+			absSrc, _ := filepath.Abs(cfg.Backup.SourcesFirstLast[i])
+			if err := restartStackIfNeeded(true, absSrc, result.ComposeFile); err != nil {
+				fmt.Printf("Error restarting %s: %v\n", absSrc, err)
+			}
+		}
 	}
 	return nil
 }
